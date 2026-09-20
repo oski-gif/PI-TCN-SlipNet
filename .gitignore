@@ -1,0 +1,14 @@
+# Generated simulation data and exports -- large, reproducible from the
+# generator scripts + seeds, doesn't belong in git.
+Data/
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.venv/
+
+# Claude Code project state
+.claude/

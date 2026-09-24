@@ -35,9 +35,24 @@ import json
 import numpy as np
 
 
+# Scalar per-trial metadata carried through to the exported dataset beyond
+# the original handful of fields. FIX: this used to only be squeeze_intensity
+# + onset_step -- everything else (friction coefficients, pull/mass, etc.)
+# was silently unreachable from the exported .npz even though every source
+# trial file records it, which would have quietly blocked any physics-
+# informed feature/loss (e.g. Coulomb ratio needs object_friction_sliding
+# and pad_friction_mean) from ever reaching the training data.
+EXTRA_SCALAR_FIELDS = [
+    "pull_multiple", "pull_force_max", "obj_mass",
+    "object_friction_sliding", "object_friction_torsional", "object_friction_rolling",
+    "pad_friction_mean", "pad_friction_min",
+    "ever_contacted", "grasp_force_at_settle",
+]
+
+
 def load_trial(path):
     with np.load(path, allow_pickle=True) as d:
-        return {
+        trial = {
             "feature_matrix": d["feature_matrix"],
             "feature_names": d["feature_names"].tolist(),
             "slip_label_series": d["slip_label_series"],
@@ -46,6 +61,10 @@ def load_trial(path):
             "object_name": str(d["object_name"]),
             "squeeze_intensity": float(d["squeeze_intensity"]),
         }
+        for field in EXTRA_SCALAR_FIELDS:
+            val = d[field]
+            trial[field] = bool(val) if field == "ever_contacted" else float(val)
+        return trial
 
 
 def pad_or_truncate(matrix, target_len):
@@ -66,6 +85,7 @@ def build_arrays(entries, target_len, feature_names_ref):
     object_names = []
     squeeze_intensities = np.zeros(len(entries), dtype=np.float32)
     onset_steps = np.zeros(len(entries), dtype=np.int64)
+    extras = {field: np.zeros(len(entries), dtype=np.float32) for field in EXTRA_SCALAR_FIELDS}
 
     for i, e in enumerate(entries):
         trial = load_trial(e["data_path"])
@@ -80,8 +100,10 @@ def build_arrays(entries, target_len, feature_names_ref):
         object_names.append(trial["object_name"])
         squeeze_intensities[i] = trial["squeeze_intensity"]
         onset_steps[i] = trial["onset_step"]
+        for field in EXTRA_SCALAR_FIELDS:
+            extras[field][i] = trial[field]
 
-    return X, y_trial, y_series, np.array(object_names), squeeze_intensities, onset_steps
+    return X, y_trial, y_series, np.array(object_names), squeeze_intensities, onset_steps, extras
 
 
 def main():
@@ -109,6 +131,17 @@ def main():
                           "want to study no-contact trials as their own "
                           "thing.")
     args = ap.parse_args()
+
+    # FIX: train_frac + val_frac > 1 used to silently produce an empty (or
+    # negative-size, which numpy slicing just clips to empty too) test set
+    # with no warning -- you'd only notice much later when test metrics
+    # looked degenerate. Fail loudly instead.
+    if args.train_frac < 0 or args.val_frac < 0:
+        raise ValueError("--train-frac and --val-frac must both be non-negative.")
+    if args.train_frac + args.val_frac > 1.0:
+        raise ValueError(
+            f"--train-frac ({args.train_frac}) + --val-frac ({args.val_frac}) "
+            f"exceeds 1.0 -- would leave an empty or negative-size test set.")
 
     with open(args.manifest) as f:
         manifest = json.load(f)
@@ -167,7 +200,14 @@ def main():
             raise ValueError(f"No trials found for holdout object '{args.holdout_object}' "
                               f"-- check the name matches OBJECT_LIBRARY exactly.")
         rng.shuffle(remaining)
-        n_val = int(len(remaining) * (args.val_frac / (1 - (1 - args.train_frac - args.val_frac))))
+        # FIX: was `val_frac / (1 - (1 - train_frac - val_frac))`, which is
+        # just a needlessly roundabout way to write `val_frac / (train_frac +
+        # val_frac)` -- and divides by zero when both are 0. Same value,
+        # clearer, and guarded.
+        denom = args.train_frac + args.val_frac
+        if denom <= 0:
+            raise ValueError("--train-frac + --val-frac must be > 0 for --split leave-one-out.")
+        n_val = int(len(remaining) * (args.val_frac / denom))
         val_entries = remaining[:n_val]
         train_entries = remaining[n_val:]
         print(f"Leave-one-out: holding out '{args.holdout_object}' entirely for test "
@@ -175,9 +215,9 @@ def main():
 
     print(f"train={len(train_entries)}  val={len(val_entries)}  test={len(test_entries)}")
 
-    X_train, y_train, ys_train, obj_train, sq_train, onset_train = build_arrays(train_entries, target_len, feature_names_ref)
-    X_val, y_val, ys_val, obj_val, sq_val, onset_val = build_arrays(val_entries, target_len, feature_names_ref)
-    X_test, y_test, ys_test, obj_test, sq_test, onset_test = build_arrays(test_entries, target_len, feature_names_ref)
+    X_train, y_train, ys_train, obj_train, sq_train, onset_train, extras_train = build_arrays(train_entries, target_len, feature_names_ref)
+    X_val, y_val, ys_val, obj_val, sq_val, onset_val, extras_val = build_arrays(val_entries, target_len, feature_names_ref)
+    X_test, y_test, ys_test, obj_test, sq_test, onset_test, extras_test = build_arrays(test_entries, target_len, feature_names_ref)
 
     # Class weights computed from TRAIN only (never val/test -- those must
     # stay an honest, unweighted picture of the real class distribution for
@@ -191,6 +231,12 @@ def main():
     counts[counts == 0] = 1  # guard against a class with zero train trials
     class_weights = len(y_train) / (n_classes * counts)
 
+    extra_arrays = {}
+    for field in EXTRA_SCALAR_FIELDS:
+        extra_arrays[f"{field}_train"] = extras_train[field]
+        extra_arrays[f"{field}_val"] = extras_val[field]
+        extra_arrays[f"{field}_test"] = extras_test[field]
+
     np.savez_compressed(
         args.out,
         feature_names=np.array(feature_names_ref),
@@ -203,6 +249,7 @@ def main():
         class_weights=class_weights,
         split_mode=args.split,
         holdout_object=args.holdout_object or "",
+        **extra_arrays,
     )
     print(f"Saved dataset to {args.out}")
     print(f"  X shape per split: (n_trials, {target_len} timesteps, {len(feature_names_ref)} features)")

@@ -92,6 +92,16 @@ def add_sensor_site(body_elem, site_name, compiled_model, body_name):
 
     body_id = mujoco.mj_name2id(compiled_model, mujoco.mjtObj.mjOBJ_BODY,
                                 body_name)
+    if body_id == -1:
+        # FIX: mj_name2id returns -1 on a miss, and -1 is a VALID numpy
+        # index (the last element) -- used unchecked, a body-name mismatch
+        # between the ElementTree and the compiled model would silently
+        # size this sensor site for a completely different, wrong body
+        # instead of raising. Same guard generate_trials.py's _require_id
+        # uses everywhere for exactly this failure mode.
+        raise ValueError(
+            f"Body '{body_name}' not found in the compiled model -- check "
+            f"the name matches exactly what's in the base scene XML.")
     aabb = collision_mesh_aabb_in_body_frame(compiled_model, body_id)
 
     site = ET.SubElement(body_elem, "site")

@@ -132,7 +132,40 @@ def main():
     ap.add_argument("--out-dir", default="Data/closed_loop_scenes")
     ap.add_argument("--no-viewer", action="store_true",
                     help="Run headless (no live MuJoCo viewer window).")
+    ap.add_argument("--training-dataset", default=None,
+                    help="Path to the .npz produced by export_data.py that "
+                         "your model was trained on. If given, this loop's "
+                         "own feature column order is checked against that "
+                         "file's saved feature_names before running. "
+                         "IMPORTANT: --fingertips order here determines the "
+                         "column order predict_slip() receives -- if it "
+                         "doesn't match training order (e.g. two fingertips "
+                         "swapped), sensor identities resolve fine but "
+                         "predict_slip() silently gets, say, the middle "
+                         "finger's data where it expects the index finger's, "
+                         "with no error. This flag is how you catch that.")
     args = ap.parse_args()
+
+    feature_names = []
+    for name in args.fingertips:
+        feature_names += [f"{name}_touch", f"{name}_normal",
+                          f"{name}_tangential", f"{name}_torque_mag"]
+    feature_names += ["obj_x", "obj_y", "obj_z",
+                      "displacement", "slip_speed", "pull_force", "phase"]
+
+    if args.training_dataset:
+        ref = np.load(args.training_dataset, allow_pickle=True)["feature_names"].tolist()
+        if ref != feature_names:
+            raise ValueError(
+                "Feature column order mismatch between this closed-loop run "
+                f"and {args.training_dataset}!\n"
+                f"  this run:  {feature_names}\n"
+                f"  training:  {ref}\n"
+                "Your --fingertips order (or normal-axis, which changes "
+                "what 'normal'/'tangential' mean) must exactly match how "
+                "the training data was generated -- otherwise predict_slip() "
+                "receives columns in the wrong order with no error.")
+        print("Feature column order verified against training dataset.")
 
     scene_path, obj_spec, actual = build_scene(
         args.mjcf, args.mesh_dir, args.fingertips, args.object,

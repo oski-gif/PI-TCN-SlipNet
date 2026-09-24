@@ -460,13 +460,33 @@ def build_trial_xml(base_xml_path, out_xml_path, obj_spec, mesh_dir, jitter_rng,
     for tip_name in fingertip_names:
         body = _find_body(root, tip_name)
         if body is None:
+            # FIX: used to silently `continue` with zero output. A typo'd or
+            # stale --fingertips name would leave that fingertip's friction
+            # un-randomized for the entire run with no signal anything was
+            # wrong -- instrument_scene.py already warns for this same
+            # situation, this now matches.
+            print(f"WARNING: fingertip body '{tip_name}' not found in scene -- "
+                  f"its pad friction was NOT randomized for this trial.")
             continue
         pad_mu = jitter_rng.uniform(pad_friction_range[0], pad_friction_range[1])
-        pad_friction_actual[tip_name] = pad_mu
+        n_applied = 0
         for geom in body.findall("geom"):
             if geom.get("contype") == "0":
                 continue
             geom.set("friction", f"{pad_mu:.5f} 0.005 0.0001")
+            n_applied += 1
+        if n_applied == 0:
+            # FIX: used to record pad_mu into pad_friction_actual regardless
+            # of whether any geom actually matched the contype filter --
+            # claiming in the manifest that a randomized friction took
+            # physical effect when it silently didn't (e.g. all of this
+            # body's geoms rely on a <default> class instead of an explicit
+            # contype attribute).
+            print(f"WARNING: fingertip '{tip_name}' has no collidable geom "
+                  f"(contype != 0) -- its pad friction was NOT applied for "
+                  f"this trial.")
+            continue
+        pad_friction_actual[tip_name] = pad_mu
     actual["pad_friction"] = pad_friction_actual
 
     tree.write(out_xml_path, encoding="UTF-8", xml_declaration=True)
@@ -640,6 +660,7 @@ def run_single_trial(mjcf_path, fingertip_names, actuator_names,
 
         col = 0
         step_normal_sum = 0.0
+        step_normal_raw_sum = 0.0
         for name in fingertip_names:
             touch_raw = float(sensor_read(touch_ids[name])[0])
             force_vec = sensor_read(force_ids[name])
@@ -667,6 +688,7 @@ def run_single_trial(mjcf_path, fingertip_names, actuator_names,
             tangential = max(0.0, tangential_raw + noise_rng.normal(0.0, sensor_noise_std))
             torque_mag = max(0.0, torque_mag_raw + noise_rng.normal(0.0, sensor_noise_std))
             step_normal_sum += normal
+            step_normal_raw_sum += normal_raw
 
             feature_matrix[step, col] = touch; col += 1
             feature_matrix[step, col] = normal; col += 1
@@ -680,7 +702,13 @@ def run_single_trial(mjcf_path, fingertip_names, actuator_names,
         # distinct from the merely-commanded squeeze_intensity.
         if step == ramp_steps + settle_steps - 1:
             ref_pos = obj_pos.copy()
-            grasp_force_at_settle = step_normal_sum
+            # FIX: was step_normal_sum (the noise-injected value also used
+            # for the recorded feature columns). ever_contacted/
+            # first_contact_step are deliberately computed from the clean
+            # pre-noise signal above; this "actual grasp force achieved"
+            # metadata field should be equally clean, not degraded by the
+            # same synthetic sensor noise as the training features.
+            grasp_force_at_settle = step_normal_raw_sum
 
         if ref_pos is not None:
             displacement = float(np.linalg.norm(obj_pos - ref_pos))

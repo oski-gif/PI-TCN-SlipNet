@@ -107,11 +107,19 @@ def main():
                          "from generate_trials.py")
     ap.add_argument(
         "--sheet-url",
-        default="https://docs.google.com/spreadsheets/d/1kY4XFcsCmE9jhJgpp1rB3nWiSD3elWpmlBKfUxPrRCY/edit",
+        default=None,
+        # FIX: this used to default to a specific real, pre-existing
+        # spreadsheet URL -- running the script exactly as its own usage
+        # example shows (--manifest only) would silently clear and overwrite
+        # that sheet's "trials" worksheet. No safe default exists for "which
+        # real spreadsheet to overwrite", so there isn't one now: omitting
+        # --sheet-url creates a brand-new spreadsheet instead (harmless,
+        # reversible), and overwriting an existing one requires explicitly
+        # naming it.
         help="URL (or bare key) of an EXISTING Google Sheet to write into. "
              "Its 'trials' worksheet is created if missing, or cleared and "
-             "overwritten if present. Pass --sheet-url '' (empty string) "
-             "to instead create a brand-new spreadsheet (see --title).")
+             "overwritten if present. Omit this (the default) to instead "
+             "create a brand-new spreadsheet (see --title).")
     ap.add_argument("--title", default="PI-TCN Slip Trials",
                     help="Name for a newly-created spreadsheet. Ignored if "
                          "--sheet-url is given.")

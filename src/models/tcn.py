@@ -94,7 +94,6 @@ class TCNBlock(nn.Module):
 
 
     def forward(self, x):
-        x = x.transpose(1, 2)
         residual = x
         if self.residual_proj is not None:
             residual = self.residual_proj(residual)
@@ -103,6 +102,21 @@ class TCNBlock(nn.Module):
         x = self.relu(x)
         return x
 
+
 class TCN(nn.Module):
     def __init__(self, in_channels, hidden_channels, kernel_size, num_layers):
         super().__init__()
+        self.blocks = nn.ModuleList()
+
+        for i in range(num_layers):
+            layer_in_channels = in_channels if i == 0 else hidden_channels
+            dilation = 2 ** i
+            self.blocks.append(TCNBlock(layer_in_channels, hidden_channels, kernel_size, dilation))
+        self.output_layer = nn.Conv1d(hidden_channels, 2, kernel_size=1)
+
+    def forward(self, x):
+        x = x.transpose(1, 2)
+        for block in self.blocks:
+            x = block(x)
+        x = self.output_layer(x)
+        return x

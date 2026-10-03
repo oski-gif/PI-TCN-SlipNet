@@ -111,11 +111,17 @@ def main():
     ap.add_argument("--manifest", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--split", choices=["random", "leave-one-out"], default="random")
-    ap.add_argument("--holdout-object", default=None,
-                     help="Required for --split leave-one-out. All trials for "
-                          "this object go to test; must match a name in your "
-                          "OBJECT_LIBRARY (e.g. cone, cube, sphere, "
-                          "rectangular_prism, cylindrical_prism).")
+    ap.add_argument("--holdout-object", nargs="+", default=None,
+                     help="Required for --split leave-one-out. One or more "
+                          "object names -- ALL trials for EVERY named object "
+                          "go to test, train/val are drawn only from the "
+                          "remaining objects. Despite the mode's name, this "
+                          "isn't limited to holding out exactly one: pass "
+                          "multiple names (e.g. --holdout-object cone sphere "
+                          "l_block dumbbell hexagonal_prism) to test "
+                          "generalization to several unseen object "
+                          "geometries at once. Names must match OBJECT_LIBRARY "
+                          "exactly (15 objects total as of this dataset).")
     ap.add_argument("--train-frac", type=float, default=0.7)
     ap.add_argument("--val-frac", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=0)
@@ -191,14 +197,21 @@ def main():
         val_entries = [manifest[i] for i in val_idx]
         test_entries = [manifest[i] for i in test_idx]
 
-    else:  # leave-one-out
+    else:  # leave-one-out (generalized to leave-SEVERAL-out -- see --holdout-object help)
         if args.holdout_object is None:
             raise ValueError("--holdout-object is required for --split leave-one-out")
-        test_entries = [m for m in manifest if m["object_name"] == args.holdout_object]
-        remaining = [m for m in manifest if m["object_name"] != args.holdout_object]
+        holdout_set = set(args.holdout_object)
+        all_objects = set(m["object_name"] for m in manifest)
+        unknown = holdout_set - all_objects
+        if unknown:
+            raise ValueError(f"--holdout-object name(s) not found in the manifest: "
+                              f"{sorted(unknown)} -- check they match OBJECT_LIBRARY "
+                              f"exactly. Objects present: {sorted(all_objects)}")
+        test_entries = [m for m in manifest if m["object_name"] in holdout_set]
+        remaining = [m for m in manifest if m["object_name"] not in holdout_set]
         if len(test_entries) == 0:
-            raise ValueError(f"No trials found for holdout object '{args.holdout_object}' "
-                              f"-- check the name matches OBJECT_LIBRARY exactly.")
+            raise ValueError(f"No trials found for holdout object(s) {sorted(holdout_set)} "
+                              f"-- check the name(s) match OBJECT_LIBRARY exactly.")
         rng.shuffle(remaining)
         # FIX: was `val_frac / (1 - (1 - train_frac - val_frac))`, which is
         # just a needlessly roundabout way to write `val_frac / (train_frac +
@@ -210,8 +223,10 @@ def main():
         n_val = int(len(remaining) * (args.val_frac / denom))
         val_entries = remaining[:n_val]
         train_entries = remaining[n_val:]
-        print(f"Leave-one-out: holding out '{args.holdout_object}' entirely for test "
-              f"({len(test_entries)} trials). Train/val drawn from the other 4 objects.")
+        print(f"Holding out {sorted(holdout_set)} entirely for test "
+              f"({len(test_entries)} trials). Train/val drawn from the other "
+              f"{len(all_objects) - len(holdout_set)} objects "
+              f"({sorted(all_objects - holdout_set)}).")
 
     print(f"train={len(train_entries)}  val={len(val_entries)}  test={len(test_entries)}")
 

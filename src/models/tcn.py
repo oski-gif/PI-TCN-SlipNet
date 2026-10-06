@@ -37,6 +37,7 @@ class SlipDataset(Dataset):
         self.X = data[f"X_{split}"][:, :, keep_idx]
         self.y_trial = data[f"y_{split}"]
         self.y_series = data[f"y_series_{split}"]
+        self.seq_len = data[f"seq_len_{split}"]
 
     def __len__(self):
         return len(self.X)
@@ -45,7 +46,12 @@ class SlipDataset(Dataset):
         x = torch.from_numpy(self.X[idx]).float()
         y_trial = torch.tensor(self.y_trial[idx], dtype=torch.long)
         y_series = torch.from_numpy(self.y_series[idx]).long()
-        return x, y_trial, y_series
+        # The trial's real length before padding -- needed to mask out
+        # padded timesteps when computing per-timestep metrics (F1,
+        # accuracy), otherwise thousands of trivial all-zero "stable"
+        # padded steps get scored alongside real ones.
+        seq_len = torch.tensor(self.seq_len[idx], dtype=torch.long)
+        return x, y_trial, y_series, seq_len
 
 class CausalConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation):

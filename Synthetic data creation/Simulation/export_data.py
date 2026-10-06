@@ -52,14 +52,23 @@ EXTRA_SCALAR_FIELDS = [
 
 def load_trial(path):
     with np.load(path, allow_pickle=True) as d:
+        feature_matrix = d["feature_matrix"]
         trial = {
-            "feature_matrix": d["feature_matrix"],
+            "feature_matrix": feature_matrix,
             "feature_names": d["feature_names"].tolist(),
             "slip_label_series": d["slip_label_series"],
             "trial_slip_label": int(d["trial_slip_label"]),
             "onset_step": int(d["onset_step"]),
             "object_name": str(d["object_name"]),
             "squeeze_intensity": float(d["squeeze_intensity"]),
+            # The trial's REAL length before pad_or_truncate pads it out to
+            # target_len with zeros. Without this, nothing downstream (e.g.
+            # computing F1/accuracy) can tell real timesteps apart from
+            # padding -- scoring over the padded region would mix in
+            # thousands of trivial all-zero "obviously stable" timesteps
+            # and inflate metrics in a way that doesn't reflect genuine
+            # per-timestep performance.
+            "seq_len": int(feature_matrix.shape[0]),
         }
         for field in EXTRA_SCALAR_FIELDS:
             val = d[field]
@@ -85,6 +94,7 @@ def build_arrays(entries, target_len, feature_names_ref):
     object_names = []
     squeeze_intensities = np.zeros(len(entries), dtype=np.float32)
     onset_steps = np.zeros(len(entries), dtype=np.int64)
+    seq_lens = np.zeros(len(entries), dtype=np.int64)
     extras = {field: np.zeros(len(entries), dtype=np.float32) for field in EXTRA_SCALAR_FIELDS}
 
     for i, e in enumerate(entries):
@@ -100,10 +110,11 @@ def build_arrays(entries, target_len, feature_names_ref):
         object_names.append(trial["object_name"])
         squeeze_intensities[i] = trial["squeeze_intensity"]
         onset_steps[i] = trial["onset_step"]
+        seq_lens[i] = trial["seq_len"]
         for field in EXTRA_SCALAR_FIELDS:
             extras[field][i] = trial[field]
 
-    return X, y_trial, y_series, np.array(object_names), squeeze_intensities, onset_steps, extras
+    return X, y_trial, y_series, np.array(object_names), squeeze_intensities, onset_steps, seq_lens, extras
 
 
 def main():
@@ -230,9 +241,9 @@ def main():
 
     print(f"train={len(train_entries)}  val={len(val_entries)}  test={len(test_entries)}")
 
-    X_train, y_train, ys_train, obj_train, sq_train, onset_train, extras_train = build_arrays(train_entries, target_len, feature_names_ref)
-    X_val, y_val, ys_val, obj_val, sq_val, onset_val, extras_val = build_arrays(val_entries, target_len, feature_names_ref)
-    X_test, y_test, ys_test, obj_test, sq_test, onset_test, extras_test = build_arrays(test_entries, target_len, feature_names_ref)
+    X_train, y_train, ys_train, obj_train, sq_train, onset_train, seqlen_train, extras_train = build_arrays(train_entries, target_len, feature_names_ref)
+    X_val, y_val, ys_val, obj_val, sq_val, onset_val, seqlen_val, extras_val = build_arrays(val_entries, target_len, feature_names_ref)
+    X_test, y_test, ys_test, obj_test, sq_test, onset_test, seqlen_test, extras_test = build_arrays(test_entries, target_len, feature_names_ref)
 
     # Class weights computed from TRAIN only (never val/test -- those must
     # stay an honest, unweighted picture of the real class distribution for
@@ -257,10 +268,13 @@ def main():
         feature_names=np.array(feature_names_ref),
         X_train=X_train, y_train=y_train, y_series_train=ys_train,
         object_train=obj_train, squeeze_train=sq_train, onset_train=onset_train,
+        seq_len_train=seqlen_train,
         X_val=X_val, y_val=y_val, y_series_val=ys_val,
         object_val=obj_val, squeeze_val=sq_val, onset_val=onset_val,
+        seq_len_val=seqlen_val,
         X_test=X_test, y_test=y_test, y_series_test=ys_test,
         object_test=obj_test, squeeze_test=sq_test, onset_test=onset_test,
+        seq_len_test=seqlen_test,
         class_weights=class_weights,
         split_mode=args.split,
         holdout_object=args.holdout_object or "",

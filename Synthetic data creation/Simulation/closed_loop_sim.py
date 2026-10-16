@@ -6,18 +6,21 @@ jitter, the gravcomp fix that stops the object free-falling during the
 approach). This is the infrastructure half of the project -- Claude-written,
 per the project's model-vs-closed-loop split.
 
-THIS FILE DELIBERATELY DOES NOT INCLUDE:
-  - A trained PI-TCN/TCN making real predictions -- predict_slip() below is
-    a stub that always returns "no slip". Wire your trained model in there.
+THIS FILE STILL DOES NOT INCLUDE:
   - Any control policy -- decide_action() below is a stub that always
     returns "no change". This is intentionally left for you to write.
 
+predict_slip() now loads and runs a real trained model when --checkpoint is
+given (model_a.pt with --in-channels 22, or model_b.pt with --in-channels
+23 -- mu_combined gets computed automatically from this scene's own actual
+friction values, not passed by hand). With no --checkpoint, it stays the
+original stub that always returns 0, so this file still runs standalone.
+
 What it DOES do: build one real trial scene, close the grip, hold, apply a
 downward pull, and run an ongoing monitoring loop with a live MuJoCo viewer
-so you can watch the whole thing happen, with the two integration points
-above clearly marked and already wired into the loop -- so plugging in a
-trained model or a real policy later is a matter of filling in those two
-functions, not restructuring anything.
+so you can watch the whole thing happen, with predict_slip() now wired to a
+real model and decide_action() still marked as the one integration point
+left for you to write.
 
 Usage:
     python closed_loop_sim.py \\
@@ -36,38 +39,70 @@ Usage:
 import argparse
 import os
 import random
+import sys
 import time
 
 import numpy as np
 import mujoco
 import mujoco.viewer
+import torch
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src", "models"))
+from tcn import TCN, LEAKAGE_FEATURES
 
 from generate_trials import (
     OBJECT_LIBRARY, OBJECT_BODY_NAME, build_trial_xml, _require_id,
 )
 
 
-# Timesteps of feature history handed to predict_slip() -- matches the kind
-# of rolling window a real TCN would consume (it needs temporal context, not
-# a single instant).
-WINDOW_SIZE = 50
+# Timesteps of feature history handed to predict_slip(). Must be >= the
+# trained TCN's actual receptive field, not an arbitrary "feels like enough"
+# number -- the original 50 here predated the real architecture. For
+# hidden_channels=32, kernel_size=3, num_layers=7 (dilations 1,2,4,...,64),
+# the causal receptive field is 1 + sum((kernel_size-1)*dilation) for all
+# layers = 1 + 2*(1+2+4+8+16+32+64) = 255. 300 gives a safety margin.
+WINDOW_SIZE = 300
+
+# Set once in main() after the model/scene are built, read by predict_slip().
+# Keeping these as module globals rather than changing predict_slip()'s
+# documented (feature_window) -> prediction signature, since that contract
+# is what the file's docstring already promises callers.
+_model = None
+_device = None
+_keep_idx = None
+_mu_combined = None  # None for a 22-channel model; a float for a 23-channel one
 
 
 def predict_slip(feature_window):
     """
-    STUB -- wire in your trained model here.
-
     feature_window: np.ndarray, shape (WINDOW_SIZE, 27) -- the most recent
     raw per-timestep features, in the SAME column order generate_trials.py
     records: for each fingertip in order, [touch, normal, tangential,
     torque_mag], then [obj_x, obj_y, obj_z, displacement, slip_speed,
     pull_force, phase]. (displacement is always 0.0 here -- there's no
     latched settle-end reference in a live/ongoing loop the way there is in
-    a fixed-length trial, so don't rely on that column as-is.)
+    a fixed-length trial, so don't rely on that column as-is -- it's
+    excluded from the model's input anyway, see LEAKAGE_FEATURES.)
 
-    Must return: 0 (no slip) or 1 (slip). Currently always returns 0.
+    Returns: 0 (no slip) or 1 (slip) -- the model's prediction for the MOST
+    RECENT timestep in the window (the last row), which is "now" in a
+    streaming/live context. Falls back to always returning 0 if no
+    --checkpoint was given (same stub behavior as before, so this file still
+    runs with no model wired in).
     """
-    return 0
+    if _model is None:
+        return 0
+
+    x = feature_window[:, _keep_idx]
+    if _mu_combined is not None:
+        mu_col = np.full((x.shape[0], 1), _mu_combined, dtype=x.dtype)
+        x = np.concatenate([x, mu_col], axis=1)
+
+    x_tensor = torch.from_numpy(x).float().unsqueeze(0).to(_device)
+    with torch.no_grad():
+        outputs = _model(x_tensor)
+        preds = outputs.argmax(dim=1)
+    return int(preds[0, -1].item())
 
 
 def decide_action(predicted_class, driven_targets):
@@ -144,6 +179,17 @@ def main():
                          "predict_slip() silently gets, say, the middle "
                          "finger's data where it expects the index finger's, "
                          "with no error. This flag is how you catch that.")
+    ap.add_argument("--checkpoint", default=None,
+                    help="Path to a trained model_a.pt/model_b.pt. If omitted, "
+                         "predict_slip() stays a stub that always returns 0, "
+                         "same as before -- this file still runs with no "
+                         "model wired in.")
+    ap.add_argument("--in-channels", type=int, default=22, choices=[22, 23],
+                    help="22 for Model A (TCN, tcn/model_a.pt), 23 for Model "
+                         "B (PI-TCN, model_b.pt -- 22 tactile/force features "
+                         "plus mu_combined, the per-trial friction scalar, "
+                         "computed automatically from this scene's actual "
+                         "friction values, NOT passed by hand).")
     args = ap.parse_args()
 
     feature_names = []
@@ -174,6 +220,28 @@ def main():
     )
     print(f"Built scene for object='{args.object}': {scene_path}")
     print(f"  friction={actual['friction']}  pos={actual['pos']}")
+
+    global _model, _device, _keep_idx, _mu_combined
+    _keep_idx = [i for i, n in enumerate(feature_names) if n not in LEAKAGE_FEATURES]
+    if args.checkpoint:
+        _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        _model = TCN(in_channels=args.in_channels, hidden_channels=32,
+                     kernel_size=3, num_layers=7).to(_device)
+        _model.load_state_dict(torch.load(args.checkpoint, map_location=_device))
+        _model.eval()
+        if args.in_channels == 23:
+            # Same definition as PITCNDataset: max(object_friction_sliding,
+            # mean of this trial's per-fingertip pad frictions) -- computed
+            # from this scene's OWN actual jittered values, not hardcoded.
+            pad_frictions = list(actual["pad_friction"].values())
+            pad_friction_mean = float(np.mean(pad_frictions)) if pad_frictions else 0.0
+            friction_sliding = float(actual["friction"].split()[0])
+            _mu_combined = max(friction_sliding, pad_friction_mean)
+            print(f"Loaded {args.checkpoint} (PI-TCN, 23ch) on {_device} -- mu_combined={_mu_combined:.5f}")
+        else:
+            print(f"Loaded {args.checkpoint} (TCN, 22ch) on {_device}")
+    else:
+        print("No --checkpoint given -- predict_slip() stays a stub (always returns 0).")
 
     model = mujoco.MjModel.from_xml_path(scene_path)
     data = mujoco.MjData(model)

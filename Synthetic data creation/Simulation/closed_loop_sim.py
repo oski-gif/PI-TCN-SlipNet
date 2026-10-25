@@ -12,9 +12,11 @@ THIS FILE STILL DOES NOT INCLUDE:
 
 predict_slip() now loads and runs a real trained model when --checkpoint is
 given (model_a.pt with --in-channels 22, or model_b.pt with --in-channels
-23 -- mu_combined gets computed automatically from this scene's own actual
-friction values, not passed by hand). With no --checkpoint, it stays the
-original stub that always returns 0, so this file still runs standalone.
+23 or 25 depending on which checkpoint -- mu_combined/obj_mass/
+grasp_force_at_settle all get computed automatically from this scene's own
+actual values, never passed by hand). It returns a PROBABILITY in [0, 1]
+now, not a hard 0/1 class. With no --checkpoint, it stays the original stub
+that always returns 0.0, so this file still runs standalone.
 
 What it DOES do: build one real trial scene, close the grip, hold, apply a
 downward pull, and run an ongoing monitoring loop with a live MuJoCo viewer
@@ -70,7 +72,16 @@ WINDOW_SIZE = 300
 _model = None
 _device = None
 _keep_idx = None
-_mu_combined = None  # None for a 22-channel model; a float for a 23-channel one
+# None for a 22-channel model (Model A). A list for a 23- or 25-channel
+# model (Model B variants), matching PITCNDataset's exact column order:
+# [mu_combined] for 23ch, [mu_combined, obj_mass, grasp_force_at_settle]
+# for 25ch. grasp_force_at_settle isn't known until the settle phase ends
+# (see the capture point in main()'s loop below), so for the 25ch case
+# this list starts with only 2 entries and gets its 3rd appended there --
+# predict_slip() is never called before that capture happens in practice,
+# since WINDOW_SIZE (300) steps always take longer to accumulate than
+# ramp_steps + settle_steps does by default.
+_extra_scalars = None
 
 
 def predict_slip(feature_window):
@@ -84,40 +95,40 @@ def predict_slip(feature_window):
     a fixed-length trial, so don't rely on that column as-is -- it's
     excluded from the model's input anyway, see LEAKAGE_FEATURES.)
 
-    Returns: 0 (no slip) or 1 (slip) -- the model's prediction for the MOST
-    RECENT timestep in the window (the last row), which is "now" in a
-    streaming/live context. Falls back to always returning 0 if no
-    --checkpoint was given (same stub behavior as before, so this file still
-    runs with no model wired in).
+    Returns: float in [0, 1] -- the model's predicted PROBABILITY of slip
+    (softmax of class 1, "slip") for the MOST RECENT timestep in the window
+    (the last row), which is "now" in a streaming/live context. This is a
+    readout change only -- the model itself is unchanged, CrossEntropyLoss
+    already trains it to produce a probability distribution internally;
+    this just stops throwing that away via argmax. Falls back to always
+    returning 0.0 if no --checkpoint was given (same stub behavior as
+    before, so this file still runs with no model wired in).
     """
     if _model is None:
-        return 0
+        return 0.0
 
     x = feature_window[:, _keep_idx]
-    if _mu_combined is not None:
-        mu_col = np.full((x.shape[0], 1), _mu_combined, dtype=x.dtype)
-        x = np.concatenate([x, mu_col], axis=1)
+    if _extra_scalars is not None:
+        extra_cols = np.tile(np.array(_extra_scalars, dtype=x.dtype), (x.shape[0], 1))
+        x = np.concatenate([x, extra_cols], axis=1)
 
     x_tensor = torch.from_numpy(x).float().unsqueeze(0).to(_device)
     with torch.no_grad():
         outputs = _model(x_tensor)
-        preds = outputs.argmax(dim=1)
-    return int(preds[0, -1].item())
+        probs = torch.softmax(outputs, dim=1)
+    return float(probs[0, 1, -1].item())
 
+STEP_FRACTION = 0.15  # tune this -- how much of the remaining room to close per correction
 
-def decide_action(predicted_class, driven_targets):
-    """
-    STUB -- intentionally left empty. Write your control policy here.
+def decide_action(slip_probability, driven_targets):
+    if slip_probability <= 0.5:
+        return {}
+    actions = {}
+    for aid, (lo, hi, target) in driven_targets.items():
+        step = STEP_FRACTION * slip_probability * (hi - target)
+        actions[aid] = target + step
+    return actions
 
-    predicted_class: whatever predict_slip() just returned.
-    driven_targets: dict {actuator_id: [lo, current_target]} for the driven
-    (flexion) actuators, so a policy can compute a new target relative to
-    the current one (e.g. squeeze harder) rather than from scratch.
-
-    Must return: dict {actuator_id: new_target} for any actuators to change
-    this step. Return {} (the default) to change nothing.
-    """
-    return {}
 
 
 def build_scene(mjcf_path, mesh_dir, fingertip_names, object_name,
@@ -184,12 +195,14 @@ def main():
                          "predict_slip() stays a stub that always returns 0, "
                          "same as before -- this file still runs with no "
                          "model wired in.")
-    ap.add_argument("--in-channels", type=int, default=22, choices=[22, 23],
-                    help="22 for Model A (TCN, tcn/model_a.pt), 23 for Model "
-                         "B (PI-TCN, model_b.pt -- 22 tactile/force features "
-                         "plus mu_combined, the per-trial friction scalar, "
-                         "computed automatically from this scene's actual "
-                         "friction values, NOT passed by hand).")
+    ap.add_argument("--in-channels", type=int, default=22, choices=[22, 23, 25],
+                    help="22 for Model A (TCN, model_a.pt). 23 or 25 for "
+                         "Model B (PI-TCN) variants -- 22 tactile/force "
+                         "features plus mu_combined (23ch), or plus "
+                         "mu_combined + obj_mass + grasp_force_at_settle "
+                         "(25ch, the current model_b.pt). All extra scalars "
+                         "are computed automatically from this scene's own "
+                         "actual values, never passed by hand.")
     args = ap.parse_args()
 
     feature_names = []
@@ -221,27 +234,8 @@ def main():
     print(f"Built scene for object='{args.object}': {scene_path}")
     print(f"  friction={actual['friction']}  pos={actual['pos']}")
 
-    global _model, _device, _keep_idx, _mu_combined
+    global _model, _device, _keep_idx, _extra_scalars
     _keep_idx = [i for i, n in enumerate(feature_names) if n not in LEAKAGE_FEATURES]
-    if args.checkpoint:
-        _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        _model = TCN(in_channels=args.in_channels, hidden_channels=32,
-                     kernel_size=3, num_layers=7).to(_device)
-        _model.load_state_dict(torch.load(args.checkpoint, map_location=_device))
-        _model.eval()
-        if args.in_channels == 23:
-            # Same definition as PITCNDataset: max(object_friction_sliding,
-            # mean of this trial's per-fingertip pad frictions) -- computed
-            # from this scene's OWN actual jittered values, not hardcoded.
-            pad_frictions = list(actual["pad_friction"].values())
-            pad_friction_mean = float(np.mean(pad_frictions)) if pad_frictions else 0.0
-            friction_sliding = float(actual["friction"].split()[0])
-            _mu_combined = max(friction_sliding, pad_friction_mean)
-            print(f"Loaded {args.checkpoint} (PI-TCN, 23ch) on {_device} -- mu_combined={_mu_combined:.5f}")
-        else:
-            print(f"Loaded {args.checkpoint} (TCN, 22ch) on {_device}")
-    else:
-        print("No --checkpoint given -- predict_slip() stays a stub (always returns 0).")
 
     model = mujoco.MjModel.from_xml_path(scene_path)
     data = mujoco.MjData(model)
@@ -266,7 +260,7 @@ def main():
     for a in args.actuators:
         aid = _require_id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, a, "Actuator")
         lo, hi = model.actuator_ctrlrange[aid]
-        driven[aid] = [float(lo), float(lo) + args.squeeze_intensity * float(hi - lo)]
+        driven[aid] = [float(lo), float(hi), float(lo) + args.squeeze_intensity * float(hi - lo)]
 
     for aid in range(model.nu):
         if aid in driven:
@@ -281,6 +275,37 @@ def main():
     obj_mass = float(model.body_mass[obj_body_id])
     g = float(np.linalg.norm(model.opt.gravity))
     pull_force_max = args.pull_multiple * obj_mass * g
+
+    if args.checkpoint:
+        _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        _model = TCN(in_channels=args.in_channels, hidden_channels=32,
+                     kernel_size=3, num_layers=7).to(_device)
+        _model.load_state_dict(torch.load(args.checkpoint, map_location=_device))
+        _model.eval()
+        if args.in_channels in (23, 25):
+            # Same definition as PITCNDataset: max(object_friction_sliding,
+            # mean of this trial's per-fingertip pad frictions) -- computed
+            # from this scene's OWN actual jittered values, not hardcoded.
+            pad_frictions = list(actual["pad_friction"].values())
+            pad_friction_mean = float(np.mean(pad_frictions)) if pad_frictions else 0.0
+            friction_sliding = float(actual["friction"].split()[0])
+            mu_combined = max(friction_sliding, pad_friction_mean)
+            if args.in_channels == 23:
+                _extra_scalars = [mu_combined]
+                print(f"Loaded {args.checkpoint} (PI-TCN, 23ch) on {_device} -- mu_combined={mu_combined:.5f}")
+            else:
+                # grasp_force_at_settle isn't known yet -- this list starts
+                # with 2 entries and gets its 3rd appended at the settle-end
+                # capture point below, before predict_slip() is ever called
+                # (see the comment on _extra_scalars' declaration).
+                _extra_scalars = [mu_combined, obj_mass]
+                print(f"Loaded {args.checkpoint} (PI-TCN, 25ch) on {_device} -- "
+                      f"mu_combined={mu_combined:.5f}  obj_mass={obj_mass:.5f}  "
+                      f"(grasp_force_at_settle captured at end of settle phase)")
+        else:
+            print(f"Loaded {args.checkpoint} (TCN, 22ch) on {_device}")
+    else:
+        print("No --checkpoint given -- predict_slip() stays a stub (always returns 0.0).")
 
     tangent_axes = [i for i in range(3) if i != args.normal_axis]
 
@@ -342,12 +367,28 @@ def main():
                 pull_frac = min((step - monitor_start + 1) / max(args.pull_ramp_steps, 1), 1.0)
                 pull = pull_frac * pull_force_max
 
-            for aid, (lo, target) in driven.items():
+            for aid, (lo, hi, target) in driven.items():
                 data.ctrl[aid] = lo + frac * (target - lo)
 
             data.xfrc_applied[obj_body_id, :3] = [0.0, 0.0, -pull]
 
             mujoco.mj_step(model, data)
+
+            # Same capture point and definition as generate_trials.py: sum of
+            # RAW normal-force sensor readings across all fingertips, at the
+            # very last step of settle, before any pull is applied. No noise
+            # to strip here -- unlike generate_trials.py, this file never
+            # adds synthetic sensor noise, so these readings are already the
+            # "raw" value. Only runs for the 25-channel case (_extra_scalars
+            # has exactly 2 entries -- mu_combined, obj_mass -- until this
+            # fires and appends the 3rd).
+            if step == monitor_start - 1 and _extra_scalars is not None and len(_extra_scalars) == 2:
+                grasp_force_at_settle = sum(
+                    float(sensor_read(force_ids[name])[args.normal_axis])
+                    for name in args.fingertips
+                )
+                _extra_scalars.append(grasp_force_at_settle)
+                print(f"  captured grasp_force_at_settle={grasp_force_at_settle:.4f}N")
 
             feats = read_features(phase, pull)
             feature_history.append(feats)
@@ -359,9 +400,12 @@ def main():
                 predicted = predict_slip(window)
                 actions = decide_action(predicted, driven)
                 for aid, new_target in actions.items():
-                    driven[aid][1] = new_target
-                print(f"  step {step}  predicted_slip={predicted}  "
-                      f"obj_z={data.xpos[obj_body_id][2]:.4f}  pull={pull:.3f}N")
+                    driven[aid][2] = new_target
+                sample_aid = next(iter(driven))
+                print(f"  step {step}  slip_probability={predicted:.4f}  "
+                      f"obj_z={data.xpos[obj_body_id][2]:.4f}  pull={pull:.3f}N  "
+                      f"n_actuators_adjusted={len(actions)}  "
+                      f"sample_target={driven[sample_aid][2]:.4f}")
 
             if viewer_handle is not None:
                 if not viewer_handle.is_running():

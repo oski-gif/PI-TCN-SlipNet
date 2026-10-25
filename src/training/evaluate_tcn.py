@@ -22,7 +22,7 @@ test_loader = DataLoader(test_ds, batch_size=32, shuffle=False)
 # state_dict() only holds learned values, not the shape they belong to.
 # model.eval() turns off training-only behavior (matters more once
 # dropout/batchnorm exist, but it's correct practice regardless).
-model = TCN(in_channels=23, hidden_channels=32, kernel_size=3, num_layers=7).to(device)
+model = TCN(in_channels=25, hidden_channels=32, kernel_size=3, num_layers=7).to(device)
 model.load_state_dict(torch.load("model_b.pt", map_location=device))
 model.eval()
 

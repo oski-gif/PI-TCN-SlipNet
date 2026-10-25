@@ -26,12 +26,17 @@ class PITCNDataset(SlipDataset):
         # Verified MuJoCo rule: effective friction is the element-wise MAX
         # of the two touching geoms' coefficients.
         self.mu_combined = np.maximum(object_friction, pad_friction)
+        self.obj_mass = data[f"obj_mass_{split}"]
+        self.grasp_force_at_settle = data[f"grasp_force_at_settle_{split}"]
 
     def __getitem__(self, idx):
         x, y_trial, y_series, seq_len = super().__getitem__(idx)
         mu = self.mu_combined[idx]
-        mu_col = torch.full((x.shape[0], 1), mu, dtype=x.dtype)
-        x = torch.cat([x, mu_col], dim=1)
+        mass = self.obj_mass[idx]
+        grasp_force = self.grasp_force_at_settle[idx]
+        extra = torch.tensor([mu, mass, grasp_force], dtype=x.dtype)
+        extra_cols = extra.unsqueeze(0).expand(x.shape[0], -1)
+        x = torch.cat([x, extra_cols], dim=1)
         return x, y_trial, y_series, seq_len
 
 
@@ -91,7 +96,6 @@ class TCNBlock(nn.Module):
         x = x + residual
         x = self.relu(x)
         return x
-
 
 class TCN(nn.Module):
     def __init__(self, in_channels, hidden_channels, kernel_size, num_layers):

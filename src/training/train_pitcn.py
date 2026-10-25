@@ -27,7 +27,7 @@ val_loader = DataLoader(val_ds, batch_size=32, shuffle=False)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
-model = TCN(in_channels=23, hidden_channels=32, kernel_size=3, num_layers=7).to(device)
+model = TCN(in_channels=25, hidden_channels=32, kernel_size=3, num_layers=7).to(device)
 
 # class_weights is the inverse-frequency weighting export_data.py already
 # computed from the TRAIN split only (never val/test) -- passing it to
@@ -35,10 +35,10 @@ model = TCN(in_channels=23, hidden_channels=32, kernel_size=3, num_layers=7).to(
 # training without discarding any trials the way hard balancing would.
 data = np.load("../../Data/pitcn_dataset_full_random_split.npz")
 class_weights = torch.tensor(data["class_weights"], dtype=torch.float32).to(device)
-criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+criterion = torch.nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-num_epochs = 20
+num_epochs = 40
 
 # The actual training loop. Per epoch: one full pass over every TRAIN batch
 # (model.train() matters more once dropout/batchnorm exist, but it's

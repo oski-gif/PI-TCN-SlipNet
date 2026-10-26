@@ -191,3 +191,109 @@ one that scales down near the limit. Model B's batch (same tuned policy +
 corrected gravity) was not re-run before stopping for the night -- do that
 too, since its only valid numbers right now are the pre-gravity-fix ones,
 which are already marked invalid above.
+
+## Autonomous deep-dive, 2026-10-25/26 overnight -- "get to 90%" investigation
+
+User authorized an extended (2+ hour) autonomous investigation targeting
+90% closed-loop success by Oct 28, with model/policy-design code changes
+tested only via a monkey-patched diagnostic harness
+(`diagnostic_policy_variants.py`), never writing to the user's actual
+`decide_action()`. Summary below; the findings supersede each other in
+places, documented honestly rather than cherry-picked.
+
+**1. `squeeze_intensity` sweep (short-timing config, see correction #4
+below -- these numbers are NOT directly comparable to anything using
+realistic timing):** 0.80->26.7%, 0.90->43.3%, 0.92->53.3%, 0.94->50.0%,
+0.95->56.7%, 0.96->50.0%, 0.98->40.0%, 1.00->50.0%. Real plateau in the
+0.90-0.96 range, not a sharp peak -- pushing too high (0.98+) regresses,
+likely because a near-maximal baseline squeeze leaves no headroom for any
+correction to use.
+
+**2. Fixed-step vs. proportional correction formula: no difference.**
+Current proportional policy and 3 fixed-step magnitudes (0.05/0.10/0.20)
+all landed on the identical 17/30 (56.7%), with nearly identical
+correction counts (~34 each) -- strong evidence the actuators are
+saturating at their ctrlrange max regardless of which formula gets them
+there. The "shrinking correction near the limit" hypothesis from earlier
+tonight does not explain the gap on its own.
+
+**3. `pull_multiple` has almost NO effect on outcome -- a genuinely
+surprising finding.** 1.0/1.2/1.5 all gave the identical 17/30 (56.7%).
+Verified with an extreme single-trial comparison: 0.2x pull (0.158N) gave
+max_displacement=0.1993; 5x pull (3.959N, 25x stronger) gave 0.2081 --
+essentially the same. **Pull force is not the primary driver of these
+failures.**
+
+**4. CRITICAL METHODOLOGY CORRECTION, discovered via #3's investigation:**
+every test tonight up through #3 used `--ramp-steps 100 --settle-steps
+100` (an old default baked into the first version of
+`batch_closed_loop_trials.py`, before the shared-argparse code-review fix
+changed it to the realistic 500/300 default). Testing with ZERO pull
+(pure gravity) on cube/seed=0 under the SHORT timing gave catastrophic
+failure (displacement 0.1989), but the SAME object/seed under the
+REALISTIC 500/300 timing (used by `generate_trials.py` and now the
+correct shared default) held securely (displacement 0.0058) in a
+follow-up check. The short ramp/settle likely doesn't give the grasp
+enough time to actually stabilize before the displacement reference is
+captured, producing spurious "slip" from residual settling motion rather
+than genuine grip failure. **This means items #1-3 above are internally
+consistent with each other (all measured under the same short-timing
+artifact) but may not reflect real-world/realistic-timing behavior.**
+
+**5. Real, properly-timed batch (realistic 500/300 ramp/settle, full
+pull_multiple=1.5 engaged and sustained, squeeze_intensity=0.95,
+max_steps=2500 to give enough post-ramp monitoring time): 18/45 (40.0%)
+held securely.** Not directly comparable to the 56.7% figure above (both
+the timing AND how long the trial sustains full pull changed at once),
+so no claim is made here that policy tuning helped under fair conditions
+-- that comparison still needs to be run properly (current policy, 0.95
+squeeze, realistic timing, vs. the ORIGINAL 0.8 squeeze/default policy,
+same realistic timing, same trial count).
+
+**Per-object breakdown from the realistic-timing batch (#5) -- this is
+genuinely actionable, independent of the timing confound:**
+sphere/rod/dumbbell held 3/3 (100%); cone/rectangular_prism/
+cylindrical_prism/plus_cross/triangular_prism/hexagonal_prism held 0/3
+(0%). This looks like a real, geometry-dependent grip-security pattern --
+flat-faced/angular shapes may give the 5-fingered hand nothing to
+cradle against, unlike rounder or more complex geometries. If true, this
+is NOT fixable via control-policy tuning alone.
+
+**6. Background research agent findings** (`reports/Neural network
+approach comparison.md`, independently verified the actual codebase
+before researching, not just worked from a description):
+- **No random seeding anywhere in the codebase** -- directly explains the
+  F1 run-to-run variance chased all night (0.69-0.80 swings from "the
+  same" config). Trivial fix, training code, not done here (not mine to
+  write).
+- `decide_action()` has no smoothing/hysteresis -- reacts to one
+  instantaneous probability with a flat threshold despite a 300-step
+  history buffer already sitting unused. Real precedent cited (a patent
+  on exactly this gripping-control pattern). Prepared but not yet tested
+  as a diagnostic variant when this investigation paused.
+- LayerNorm/weight-norm in `TCNBlock` untested (dropout was tried and
+  regressed; normalization specifically was not tried in isolation) --
+  matches both the original TCN paper and a published slip-detection TCN
+  paper's architecture.
+- `decide_action()` applies the identical correction to every actuator
+  regardless of which specific finger's sensors show slip -- the model
+  has per-fingertip features upstream but the controller collapses them
+  into one global reaction.
+- On the 9-failed-physics-features finding: real precedent exists that
+  genuine pre-slip tactile signal requires kHz-range micro-vibration
+  sensing this project's sensors structurally cannot provide -- suggests
+  deprioritizing further hand-engineered feature work in favor of the
+  closed-loop controller, which has independently verifiable, fixable
+  problems (items above).
+
+**Honest state for whoever picks this up:** the single most important
+next step is re-running a clean, apples-to-apples comparison under
+REALISTIC timing only -- baseline (0.8 squeeze, original policy) vs.
+tuned (0.95 squeeze, current policy) -- since nothing claimed above about
+policy/squeeze improvements has been verified under fair, consistent
+conditions yet. The object-specific failure pattern (item 5) is probably
+the highest-leverage real lever remaining, more than further policy
+tuning. 90% by Oct 28 looks genuinely difficult given the geometry-
+dependent failures found here, but 40%+ on a realistic-timing baseline,
+up from an unverified-but-likely-lower true starting point, is real
+progress, honestly reported rather than inflated.

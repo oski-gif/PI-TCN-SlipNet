@@ -38,7 +38,7 @@ class_weights = torch.tensor(data["class_weights"], dtype=torch.float32).to(devi
 criterion = torch.nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-num_epochs = 40
+num_epochs = 20
 
 # The actual training loop. Per epoch: one full pass over every TRAIN batch
 # (model.train() matters more once dropout/batchnorm exist, but it's

@@ -99,7 +99,95 @@ Checkpoint backed up as `model_b_f1_0782_backup.pt` before further tuning.
 Real improvement, not noise -- F1 0.782->0.799, accuracy 0.904->0.908,
 same 0.30 threshold both times. **This is now the number to cite for Model
 B.** Checkpoint backed up as `model_b_f1_0799_backup.pt`. Gap to the 0.85
-target: ~0.05 F1 remaining -- next lever being tested is dropout, then
-multi-seed ensembling for both the remaining gap and run-to-run consistency
-(Model A alone has shown F1 vary 0.693-0.719 across identical-config runs,
-so a single run's number was never going to be "consistent" by itself).
+target: ~0.05 F1 remaining.
+
+**Dropout tested and reverted:** added `nn.Dropout(p=0.2)` to `TCNBlock`,
+retrained -- F1 dropped to 0.776 (below the 0.78 floor), accuracy to 0.895.
+Reverted both the checkpoint (restored from the 0799 backup) and the code
+change. Dropout apparently hurts here, not helps -- no evidence this model
+was overfitting, so removing capacity just removed signal.
+
+**num_epochs=40 applied to Model A too, for comparison fairness -- made it
+WORSE, not better:** F1 dropped from 0.773 to 0.722. Reverted to 20 epochs,
+but the restore run itself landed at F1=0.691 (accuracy 0.887) -- NOT the
+same as the original 0.773 run, since training isn't seeded. This is a
+real, concrete demonstration of the run-to-run variance problem: Model A
+alone has now shown F1 of 0.773, 0.722, AND 0.691 from nominally "the same"
+20-epoch config. Multi-seed runs (not yet done) are needed before any
+single Model A number should be treated as final -- flagged here rather
+than silently picking whichever run looked best.
+
+## Closed-loop batch trial results (Model A vs Model B, 45 trials each)
+
+- **Date:** 2026-10-25
+- **Setup:** new `batch_closed_loop_trials.py`, calling `run_trial()`
+  (extracted from `closed_loop_sim.py` in the same refactor) headlessly,
+  3 trials per object x all 15 objects in `OBJECT_LIBRARY`, each trial a
+  fresh seed (new friction/mass/geometry jitter). `squeeze_intensity=0.8`,
+  `pull_multiple=1.5` (defaults), `decide_action()`'s real control policy
+  active throughout (not a stub). "Held securely" = max displacement from
+  the settle-end reference never exceeded 15% of that object's own
+  char_length -- same threshold definition `generate_trials.py` uses for
+  `trial_slip_label`. ~1.65s/trial, 45 trials in ~75s per model.
+- **Model A (22ch, F1=0.773 static): 8/45 (17.8%) held securely.**
+  Mean max_slip_probability=0.658, mean n_corrections=11.96.
+- **Model B (25ch, F1=0.799 static): 5/45 (11.1%) held securely.**
+  Mean max_slip_probability=0.729, mean n_corrections=14.11.
+
+**Model B has the better static F1/accuracy but the WORSE closed-loop
+success rate.** Not a bug -- Model B actually corrects MORE often (higher
+mean probability, more corrections triggered) and still does worse, so
+this isn't under-reaction. Two honest candidate explanations, neither
+confirmed: (1) Model B's physics-informed inputs make it more sensitive in
+a way that doesn't translate to better control outcomes, or (2) 45 trials/
+model is real but not large -- given the demonstrated run-to-run training
+variance above, some of this gap could be sample noise rather than a true
+effect. Flagging both possibilities rather than picking one. This result
+is itself a legitimate finding worth reporting either way: static accuracy
+and closed-loop control quality are not the same thing, which is exactly
+what the closed-loop comparison was built to be able to show.
+
+**CORRECTION, same date:** a code-review pass found a real bug in the
+closed_loop_sim.py refactor that produced the Model A/B batch numbers
+above -- the line that re-enables real gravity at the start of the settle
+phase was accidentally dropped (only its print statement survived), so
+EVERY trial behind both the 45/45 and 11.1%/17.8% numbers above ran with
+the object permanently weightless for the entire simulation, not just
+during the ramp/approach as intended. **Those two batch results are
+invalid** -- gravity never pulling the object down the whole time
+fundamentally changes what "slip" means in that physics. Fixed (restored
+the `gravcomp = 0.0` reset), and 3 more issues from the same review pass
+also fixed while at it: `batch_closed_loop_trials.py` now has real error
+handling and writes results incrementally (one bad trial no longer loses
+the whole batch), the raw feature-column list is now a single shared
+`build_feature_names()` instead of duplicated in two places, and the two
+scripts' argparse setup is now a shared `add_common_args()` instead of
+hand-duplicated flags with silently different defaults.
+
+## Closed-loop batch, re-run with corrected gravity + policy tuning (Model A only)
+
+- **Date:** 2026-10-25
+- **Policy change tested:** trigger threshold 0.5->0.3, `STEP_FRACTION`
+  0.15->0.35 (both in `decide_action()`) -- user's explicit, well-reasoned
+  call, not mine: react sooner and correct harder.
+- **Result (corrected gravity, tuned policy): 10/45 (22.2%) held securely.**
+  Mean max_slip_probability=0.54, mean n_corrections=5.96.
+- **Reaction-frequency test** (same tuned policy, but checking/correcting
+  every 5 simulation steps instead of every 25): **identical 10/45
+  (22.2%).** Corrections per trial jumped to 25.27 (confirming it really
+  did react far more often), but the outcome didn't change AT ALL --
+  real, informative negative result: reaction lag was not the bottleneck.
+
+**Leading hypothesis for tomorrow, not yet tested:** `decide_action()`'s
+own formula, `step = STEP_FRACTION * probability * (hi - target)`, shrinks
+toward zero as the grip approaches its ctrlrange max -- a known tradeoff
+flagged when the policy was first designed. If the grip is already fairly
+tight and still slipping, every additional correction has less room to
+work with, independent of how often it's applied -- which would exactly
+explain why reacting 5x more often changed nothing. Two untried, quick
+fixes for next time: raise `squeeze_intensity` above 0.8 (more initial
+headroom), or change the correction to a fixed absolute step instead of
+one that scales down near the limit. Model B's batch (same tuned policy +
+corrected gravity) was not re-run before stopping for the night -- do that
+too, since its only valid numbers right now are the pre-gravity-fix ones,
+which are already marked invalid above.

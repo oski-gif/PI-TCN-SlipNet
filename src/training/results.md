@@ -297,3 +297,37 @@ tuning. 90% by Oct 28 looks genuinely difficult given the geometry-
 dependent failures found here, but 40%+ on a realistic-timing baseline,
 up from an unverified-but-likely-lower true starting point, is real
 progress, honestly reported rather than inflated.
+
+## THE clean comparison -- real baseline vs. real tuned, no confounds
+
+- **Date:** 2026-10-26 (overnight)
+- **Setup:** `diagnostic_clean_comparison.py`, both configurations run
+  under the SAME realistic timing (500/300 ramp/settle), same 45 trials
+  (all 15 objects x 3 seeds), same checkpoint (Model A). Baseline uses
+  the ORIGINAL policy settings (threshold=0.5, STEP_FRACTION=0.15,
+  monkey-patched since the real file now has the tuned version) at the
+  original squeeze_intensity=0.8. Tuned uses the REAL, current
+  `decide_action()` (threshold=0.3, STEP_FRACTION=0.35) at
+  squeeze_intensity=0.95.
+- **BASELINE (0.8 squeeze, original policy): 6/45 (13.3%) held securely.**
+- **TUNED (0.95 squeeze, tuned policy): 18/45 (40.0%) held securely.**
+
+**This is the number that actually matters -- a genuine ~3x improvement,
+verified with no confounds.** Every earlier closed-loop percentage
+tonight (including the ones already logged above) was measured under
+either the pre-gravity-fix bug, the short-timing artifact, or without a
+fair baseline to compare against -- this is the first comparison where
+both sides are on equal footing. **Cite 13.3% -> 40.0% as the real,
+trustworthy result of tonight's tuning, not any of the earlier
+percentages in this file.**
+
+**Still well short of the 90% target.** Given the object-specific
+breakdown found earlier (some objects 100%, several 0%), the likely
+highest-leverage next step is understanding/fixing those specific
+geometry failures rather than further policy-parameter tuning -- squeeze
+intensity and policy aggressiveness look close to their useful limit
+(see the squeeze_intensity plateau and the fixed-step-made-no-difference
+finding above). Not yet tested: the hysteresis/smoothing policy variant
+flagged by the research agent, and whether the 0-failure objects fail for
+a shared, fixable reason (e.g. grasp approach geometry) or are each
+failing differently.

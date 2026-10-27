@@ -90,15 +90,35 @@ def build_feature_names(fingertips):
     return names
 
 
-def load_model(checkpoint, in_channels):
+def load_model(checkpoint, in_channels, device=None):
     """Loads the trained model ONCE -- call this before run_trial(), not
     inside it, so a batch of many trials doesn't reload the checkpoint from
-    disk every time."""
+    disk every time.
+
+    device: force "cpu" or "cuda" explicitly. Leave as None for the normal
+    auto-detect behavior (single-process scripts) -- but RL training passes
+    "cpu" explicitly, because torch.cuda.is_available() was found to return
+    True even with CUDA_VISIBLE_DEVICES="" and torch.cuda.device_count()==0
+    (a real torch inconsistency, not a typo) -- auto-detect would then try
+    to move the model onto a CUDA device that doesn't actually exist, which
+    sometimes silently no-ops and sometimes hangs the whole process, which
+    is what caused every unexplained multi-minute hang tonight."""
     global _model, _device
-    _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device is not None:
+        _device = torch.device(device)
+    else:
+        _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     _model = TCN(in_channels=in_channels, hidden_channels=32,
-                kernel_size=3, num_layers=7).to(_device)
-    _model.load_state_dict(torch.load(checkpoint, map_location=_device))
+                kernel_size=3, num_layers=7)
+    # Always deserialize onto CPU first, then move -- map_location=_device
+    # (a torch.device object) does NOT reliably remap a GPU-saved checkpoint
+    # when CUDA is unavailable in THIS process (hit this directly: RL training
+    # subprocesses run with CUDA_VISIBLE_DEVICES="" to avoid multi-process
+    # CUDA-context contention, and map_location=torch.device("cpu") still
+    # raised "Attempting to deserialize object on CUDA device 0"). The
+    # string "cpu" is the documented, reliable universal-remap form.
+    _model.load_state_dict(torch.load(checkpoint, map_location="cpu"))
+    _model = _model.to(_device)
     _model.eval()
     print(f"Loaded {checkpoint} ({in_channels}ch) on {_device}")
 

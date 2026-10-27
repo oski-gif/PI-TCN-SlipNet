@@ -327,7 +327,89 @@ highest-leverage next step is understanding/fixing those specific
 geometry failures rather than further policy-parameter tuning -- squeeze
 intensity and policy aggressiveness look close to their useful limit
 (see the squeeze_intensity plateau and the fixed-step-made-no-difference
-finding above). Not yet tested: the hysteresis/smoothing policy variant
-flagged by the research agent, and whether the 0-failure objects fail for
-a shared, fixable reason (e.g. grasp approach geometry) or are each
-failing differently.
+finding above).
+
+## Hysteresis/smoothing policy variant -- tested, no improvement
+
+- **Date:** 2026-10-25/26 overnight
+- **Setup:** `diagnostic_hysteresis.py`, same 45 trials (15 objects x 3
+  seeds, realistic timing, squeeze_intensity=0.95) as the clean
+  comparison. Tests the research agent's flagged gap -- `decide_action()`
+  reacts to one instantaneous probability with a flat threshold despite a
+  300-step history buffer sitting unused -- by adding EMA smoothing
+  (alpha=0.3) plus separate engage/disengage thresholds (0.3/0.15)
+  instead of one flat 0.3 cutoff.
+- **Current tuned policy (no smoothing): 18/45 (40.0%).**
+- **Hysteresis (EMA alpha=0.3, engage=0.3/disengage=0.15): 17/45 (37.8%).**
+- **No improvement -- a 1-trial difference out of 45, noise-level.**
+  Smoothing/hysteresis is not the lever that moves this number. Combined
+  with the squeeze_intensity plateau and the fixed-step-made-no-difference
+  finding, three independent control-policy changes have now all failed
+  to move the needle -- the bottleneck is very unlikely to be in
+  `decide_action()`'s formula itself.
+
+## Object-geometry investigation -- mesh collision is a real, large risk factor
+
+- **Date:** 2026-10-25/26 overnight
+- Cross-referencing the per-object breakdown (from the 45-trial realistic-
+  timing batch, `Data/closed_loop_scenes/batch_results.jsonl`) against
+  each object's `kind` in `OBJECT_LIBRARY` (`generate_trials.py`):
+  - **Mesh-kind objects (cone, square_pyramid, triangular_prism,
+    hexagonal_prism): 1/12 trials held securely (8.3%).**
+  - **Primitive + compound objects (the other 11): 17/33 held securely
+    (51.5%).**
+  - That's a large, real split -- but not a clean rule. `plus_cross`
+    (compound) and `rectangular_prism`/`cylindrical_prism` (primitive)
+    also failed 0/3, so "mesh" is a strong risk factor, not the whole
+    story. Also notable: object size (`char_length`) does NOT explain it
+    -- `sphere`, `cone`, `cube`, `square_pyramid`, `hexagonal_prism` all
+    share the identical char_length=0.04 (confirmed: their displacement
+    threshold is exactly `0.15 * char_length` in every case), yet their
+    success rates range from 3/3 (sphere) to 0/3 (cone, hexagonal_prism).
+    Shape, not size, is driving this.
+- **Follow-up diagnostic (`diagnostic_contact_geometry.py`, read-only
+  inspection of `mjData.contact`, never writes to closed_loop_sim.py):**
+  compared contact points at end-of-settle (grip closed, object only
+  under gravity, before any pull) between sphere (succeeds) and cone
+  (fails), same seed. Sphere: 6 contacts with the object, each at a
+  distinct position. Cone: 12 contacts with the object -- but several are
+  duplicated at near-identical positions (e.g. 3 contacts within 0.0001
+  of each other at one spot, another pair/triple likewise) -- a known
+  MuJoCo mesh-collision pattern where the solver can generate multiple
+  near-redundant contact points on the same mesh face instead of one
+  clean contact. This is *suggestive* that mesh collision is giving a
+  less clean/stable contact geometry than analytic primitives -- but it's
+  a single snapshot (n=1 per object), not a proven causal mechanism.
+  Genuine shape difficulty (cone's apex and sloped sides give fingers a
+  worse surface to cradle against even in a perfect simulator) remains an
+  equally plausible, non-exclusive explanation -- this diagnostic can't
+  cleanly separate the two hypotheses, only confirm mesh contact geometry
+  looks messier.
+- **Unrelated anomaly surfaced while running this diagnostic, flagged
+  rather than chased further tonight:** the diagnostic rebuilt `cube`
+  seed=0's scene independently and found it on the floor with ZERO
+  finger contacts at end-of-settle -- but the actual 45-trial batch
+  recorded that exact object/seed as held securely (displacement=0.0059).
+  Same object, same seed, same build path, different outcome. Possible
+  explanations not yet investigated: floating-point/solver
+  non-associativity near an unstable equilibrium (cube's grip may be
+  genuinely marginal, consistent with its mixed 1/3 batch result), or a
+  procedural difference between this diagnostic's manual step loop and
+  `run_trial()`'s. Worth a careful look before trusting any single-seed
+  reproduction in this codebase -- the batch-level percentages (45 trials)
+  are far more trustworthy than any one-off single-trial check.
+
+**Honest state for whoever picks this up:** three independent
+control-policy changes (squeeze sweep, fixed-step correction, hysteresis)
+all failed to move the 40% number -- the policy is very likely near its
+ceiling given the current model and object set. The object-geometry angle
+is real (mesh objects fail far more) but only partially explains the
+pattern, and the mechanism (sim artifact vs. genuine shape difficulty) is
+still unresolved. Not yet tested: whether the 0-failure NON-mesh objects
+(plus_cross, rectangular_prism, cylindrical_prism) fail for a shared
+reason with each other, or with the mesh objects, or independently. 90%
+by Oct 28 still looks genuinely difficult from here -- the honest
+recommendation is to treat 40% (3x the real baseline) as tonight's
+result, and decide fresh with the user which thread (geometry/mesh
+collision, the model itself, or accepting a lower target with an honest
+writeup of why) is worth the remaining time before the deadline.

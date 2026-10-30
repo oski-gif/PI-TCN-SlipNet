@@ -24,7 +24,10 @@ def make_fixed_step_policy(fixed_fraction, threshold):
     """fixed_fraction: fraction of the actuator's FULL range (hi - lo),
     not remaining room, applied every time probability exceeds threshold.
     Clamped to hi so it never exceeds the real actuator limit."""
-    def policy(slip_probability, driven_targets):
+    def policy(slip_probability, driven_targets, **kwargs):
+        # **kwargs absorbs run_trial()'s feats= kwarg (added later for a
+        # per-finger-localized policy variant) -- unused here, same
+        # behavior as before.
         if slip_probability <= threshold:
             return {}
         actions = {}

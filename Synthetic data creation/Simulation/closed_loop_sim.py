@@ -67,13 +67,17 @@ from generate_trials import (
 # layers = 1 + 2*(1+2+4+8+16+32+64) = 255. 300 gives a safety margin.
 WINDOW_SIZE = 300
 
-# Set by load_model(), read by predict_slip(). _extra_scalars is also reset
-# per-trial inside run_trial() (friction/mass/grasp-force are scene-specific,
-# unlike the model weights, which only need loading once per batch).
+# Set by load_model() -- the model itself is process-wide/load-once-per-batch
+# state, which is fine (each SlipGraspEnv/run_trial() call in a given process
+# shares the same loaded weights on purpose). keep_idx/extra_scalars used to
+# live here too as module globals, but those are PER-TRIAL/PER-EPISODE state
+# (friction/mass/grasp-force differ scene to scene) -- a module global for
+# that silently corrupts results the moment two trials/envs are ever live in
+# the same process at once (e.g. a future DummyVecEnv with n_envs>1). Now
+# threaded through predict_slip() as explicit parameters instead; callers
+# (run_trial() below, rl_env.py's SlipGraspEnv) own their own copies.
 _model = None
 _device = None
-_keep_idx = None
-_extra_scalars = None  # None for 22ch. List for 23/25ch, see run_trial().
 
 
 def build_feature_names(fingertips):
@@ -123,7 +127,7 @@ def load_model(checkpoint, in_channels, device=None):
     print(f"Loaded {checkpoint} ({in_channels}ch) on {_device}")
 
 
-def predict_slip(feature_window):
+def predict_slip(feature_window, keep_idx, extra_scalars=None):
     """
     feature_window: np.ndarray, shape (WINDOW_SIZE, 27) -- the most recent
     raw per-timestep features, in the SAME column order generate_trials.py
@@ -133,6 +137,15 @@ def predict_slip(feature_window):
     latched settle-end reference in a live/ongoing loop the way there is in
     a fixed-length trial, so don't rely on that column as-is -- it's
     excluded from the model's input anyway, see LEAKAGE_FEATURES.)
+
+    keep_idx: column indices to keep after dropping LEAKAGE_FEATURES, computed
+    once by the caller from build_feature_names() (e.g. run_trial()'s local
+    `keep_idx`, or SlipGraspEnv's self._keep_idx) -- NOT a module global,
+    since it's per-trial/per-episode state, not process-wide state.
+
+    extra_scalars: optional list of per-trial physics scalars (mu_combined,
+    obj_mass, grasp_force_at_settle) for Model B's 23/25-channel variants,
+    same per-trial-state reasoning as keep_idx. None for Model A (22ch).
 
     Returns: float in [0, 1] -- the model's predicted PROBABILITY of slip
     (softmax of class 1, "slip") for the MOST RECENT timestep in the window
@@ -146,9 +159,9 @@ def predict_slip(feature_window):
     if _model is None:
         return 0.0
 
-    x = feature_window[:, _keep_idx]
-    if _extra_scalars is not None:
-        extra_cols = np.tile(np.array(_extra_scalars, dtype=x.dtype), (x.shape[0], 1))
+    x = feature_window[:, keep_idx]
+    if extra_scalars is not None:
+        extra_cols = np.tile(np.array(extra_scalars, dtype=x.dtype), (x.shape[0], 1))
         x = np.concatenate([x, extra_cols], axis=1)
 
     x_tensor = torch.from_numpy(x).float().unsqueeze(0).to(_device)
@@ -160,7 +173,15 @@ def predict_slip(feature_window):
 
 STEP_FRACTION = 0.35  # tune this -- how much of the remaining room to close per correction
 
-def decide_action(slip_probability, driven_targets):
+def decide_action(slip_probability, driven_targets, feats=None):
+    """feats: optional raw feature row (same 27-column layout as
+    build_feature_names()/read_features()) for the step this decision is
+    being made on -- added so a per-finger-localized policy variant can see
+    each fingertip's own tangential/normal force without changing this
+    function's job for the still-global policy below, which ignores it.
+    Keyword-only in practice (always called as feats=... at the one call
+    site in run_trial()) so existing monkeypatched diagnostic policies with
+    the old 2-arg signature keep working unchanged."""
     if slip_probability <= 0.3:
         return {}
     actions = {}
@@ -198,10 +219,8 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
     max_displacement, threshold, max_slip_probability, final_slip_probability,
     n_corrections (how many times decide_action() actually adjusted the grip).
     """
-    global _keep_idx, _extra_scalars
-
     feature_names = build_feature_names(args.fingertips)
-    _keep_idx = [i for i, n in enumerate(feature_names) if n not in LEAKAGE_FEATURES]
+    keep_idx = [i for i, n in enumerate(feature_names) if n not in LEAKAGE_FEATURES]
 
     scene_path, obj_spec, actual = build_scene(
         args.mjcf, args.mesh_dir, args.fingertips, object_name,
@@ -260,15 +279,15 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
         friction_sliding = float(actual["friction"].split()[0])
         mu_combined = max(friction_sliding, pad_friction_mean)
         if args.in_channels == 23:
-            _extra_scalars = [mu_combined]
+            extra_scalars = [mu_combined]
         else:
             # grasp_force_at_settle isn't known yet -- appended at the
             # settle-end capture point below, before predict_slip() is
             # ever called (WINDOW_SIZE steps always take longer to
             # accumulate than ramp+settle does by default).
-            _extra_scalars = [mu_combined, obj_mass]
+            extra_scalars = [mu_combined, obj_mass]
     else:
-        _extra_scalars = None
+        extra_scalars = None
 
     tangent_axes = [i for i in range(3) if i != args.normal_axis]
 
@@ -346,12 +365,12 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
                 # settle -- same timing/reasoning as generate_trials.py's
                 # FIX 7 (don't score normal grasp acquisition as slip).
                 ref_pos = data.xpos[obj_body_id].copy()
-                if _extra_scalars is not None and len(_extra_scalars) == 2:
+                if extra_scalars is not None and len(extra_scalars) == 2:
                     grasp_force_at_settle = sum(
                         float(sensor_read(force_ids[name])[args.normal_axis])
                         for name in args.fingertips
                     )
-                    _extra_scalars.append(grasp_force_at_settle)
+                    extra_scalars.append(grasp_force_at_settle)
                     if verbose:
                         print(f"  captured grasp_force_at_settle={grasp_force_at_settle:.4f}N")
 
@@ -366,10 +385,10 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
 
             if phase == 2 and len(feature_history) == WINDOW_SIZE and step % 5 == 0:
                 window = np.stack(feature_history)
-                predicted = predict_slip(window)
+                predicted = predict_slip(window, keep_idx, extra_scalars)
                 last_slip_probability = predicted
                 max_slip_probability = max(max_slip_probability, predicted)
-                actions = decide_action(predicted, driven)
+                actions = decide_action(predicted, driven, feats=feats)
                 if actions:
                     n_corrections += 1
                 for aid, new_target in actions.items():

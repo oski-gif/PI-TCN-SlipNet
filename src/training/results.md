@@ -117,6 +117,20 @@ alone has now shown F1 of 0.773, 0.722, AND 0.691 from nominally "the same"
 single Model A number should be treated as final -- flagged here rather
 than silently picking whichever run looked best.
 
+**Which number to cite for Model A, given the above (added
+2026-10-30 to resolve an ambiguity this entry left open -- nothing new
+run, just stating what already follows from the numbers above):**
+0.7728929388214366 (the label-smoothed, 20-epoch run from the entry
+above this section) remains the number currently in use for Model A,
+since the num_epochs=40 change was reverted rather than adopted. But
+unlike Model B's citation two sections up, this is NOT a settled number
+-- it's one sample from a config now demonstrated to swing between 0.773
+and 0.691 (a ~0.08 spread) run to run. Cite it as provisional / report
+it as a range (0.69-0.77) rather than a single clean value, until seeded
+multi-run training exists to actually determine mean+-std (see "Neural
+network approach comparison.md" section 4.1 -- this is the user's
+training-loop domain to fix, not something resolved here).
+
 ## Closed-loop batch trial results (Model A vs Model B, 45 trials each)
 
 - **Date:** 2026-10-25
@@ -413,3 +427,149 @@ recommendation is to treat 40% (3x the real baseline) as tonight's
 result, and decide fresh with the user which thread (geometry/mesh
 collision, the model itself, or accepting a lower target with an honest
 writeup of why) is worth the remaining time before the deadline.
+
+## Per-finger localized correction -- tested, no improvement
+
+- **Date:** 2026-10-30
+- **Setup:** `diagnostic_per_finger_correction.py`, same 45-trial benchmark
+  (15 objects x 3 seeds, realistic 500/300 ramp/settle timing,
+  squeeze_intensity=0.95, Model A/22ch) as every prior closed-loop
+  comparison above. Tests the research-agent-flagged gap (`decide_action()`
+  applies the identical correction to every actuator from one pooled
+  `slip_probability`, discarding the per-fingertip features the pipeline
+  already computes) by weighting each finger's correction step by that
+  finger's own current `tangential / |normal|` ratio relative to the
+  5-finger mean (clipped to [0.5, 2.0]), while leaving the existing global
+  gate (`slip_probability <= 0.3`) and `STEP_FRACTION=0.35` exactly as in
+  the real, unmodified `decide_action()` -- isolating ONE variable, same
+  discipline as the hysteresis/fixed-step/squeeze diagnostics.
+- **CURRENT tuned policy (global scalar): 18/45 (40.0%).**
+- **PER-FINGER localized correction: 18/45 (40.0%).**
+- **Identical result, trial-for-trial -- not even noise-level, exactly
+  the same count.** This is now the FOURTH independent control-policy
+  change (after squeeze sweep, fixed-step, hysteresis) to fail to move the
+  40% number. Taken together, these four results are strong, convergent
+  evidence that the ceiling isn't in `decide_action()`'s formula in any
+  form tried so far -- not the threshold, not the step size, not the
+  timing/smoothing, and now not which finger it's applied to either. This
+  further supports the decision (already made, see the RL env v2 scope
+  expansion) that the real lever left is grasp FORMATION itself (what grip
+  gets built in the first place, object-adaptively) rather than any more
+  post-formation correction-policy tuning -- there is very likely nothing
+  left to find by tuning `decide_action()` further.
+
+## Cube seed=0 reproducibility anomaly -- investigated, not resolved
+
+- **Date:** 2026-10-30
+- **Re-ran `diagnostic_contact_geometry.py` for cube/seed=0 again, fresh:
+  reproduces the SAME anomaly as before (ncon=1 object-contact, floor-only,
+  no fingertip contact).** This rules out "it was a one-off fluke on the
+  diagnostic's own side" -- the diagnostic's own result is itself
+  deterministic/reproducible across separate invocations.
+- **Compared `diagnostic_contact_geometry.py`'s `inspect_object()` loop
+  against `run_trial()`'s ramp/settle code line-by-line -- found no
+  procedural difference.** Same `cls.build_scene()` call (same
+  `jitter_rng = random.Random(seed)`, so identical object pose/friction/
+  size jitter), same gravcomp-toggle timing (`body_gravcomp` set to 0 at
+  exactly `step == ramp_steps` in both), same `data.ctrl` assignment
+  formula (`lo + frac*(target-lo)`) every step, same total step count
+  through settle-end. `run_trial()` additionally zeroes `data.xfrc_applied`
+  every step (pull=0.0 during ramp/settle) where the diagnostic never
+  touches it -- inconsequential, since `MjData()` already zero-initializes
+  it and nothing else writes to it before settle-end in either path.
+  Neither script calls `mj_forward()` before the step loop; both rely on
+  `mj_step()`'s own internal forward pass, so this isn't a difference
+  between them either (it may be worth checking in general, but it's not
+  what explains the cube/seed=0 split specifically).
+- **Checked CLI defaults match.** Both this diagnostic (which hardcodes
+  `args.squeeze_intensity = 0.95` in `main()`) and the batch run that
+  produced the cited 40.0%/per-object numbers (`batch_closed_loop_trials.py`,
+  called with `--squeeze-intensity 0.95` per the "realistic-timing batch"
+  log entry above) land on the same ramp_steps=500/settle_steps=300
+  defaults from the shared `add_common_args()` -- confirmed via
+  `Data/closed_loop_scenes/batch_results.jsonl`'s cube/seed=0 record:
+  `max_slip_probability=0.9076`, `n_corrections=333`, final
+  `max_displacement=0.00588` (just under the 0.006 threshold) -- i.e. the
+  real run shows a model that was VERY unsure/alarmed (90.76% slip
+  probability) and corrected heavily (333 times) to just barely hold on,
+  consistent with "marginal grip," not a confidently-secure one.
+- **Still unresolved, and now better scoped:** the object ending up on the
+  floor with zero finger contact at settle-end (diagnostic) is hard to
+  reconcile with a grip that's merely "marginal but present" being rescued
+  by 333 corrections during hold -- corrections nudge actuator targets by
+  small increments; they have no mechanism to reach down and re-acquire an
+  object that has already fallen out of the hand entirely. With the code
+  paths verified identical and the CLI settings verified matching, the
+  remaining candidate explanation is MuJoCo-engine-level
+  non-reproducibility between separate process invocations building
+  "the same" model from byte-identical XML (e.g. mesh/BVH construction or
+  solver warm-start state that isn't purely a function of the XML content) --
+  genuinely out of this investigation's bounded scope to chase further
+  (would require instrumenting MuJoCo's own compilation/solver internals,
+  not this project's code). Recorded here rather than resolved: treat any
+  single-seed reproduction via a short standalone script in this codebase
+  as suggestive, not proof, until/unless this is understood -- the
+  batch-level percentages (45 trials, many seeds) remain the trustworthy
+  numbers regardless.
+
+## Mesh-collision vs. genuine-shape-difficulty -- one more step, still not separated
+
+- **Date:** 2026-10-30
+- **New data point:** counted actual vertices/faces in each mesh-kind
+  object's `.obj` file (pure file parsing, no MuJoCo involved):
+  cone=34v/64f, square_pyramid=6v/8f, triangular_prism=8v/12f,
+  hexagonal_prism=14v/24f -- an ~8x spread in tessellation density
+  across the 4 mesh objects (cone is a 32-sided "cone approximation"
+  per `generate_trials.py`'s own comment; square_pyramid is a true
+  4-sided pyramid, barely more faceted than a primitive box).
+- **Cross-referenced against each object's actual per-object success
+  rate** (`Data/closed_loop_scenes/batch_results.jsonl`, the same
+  realistic-timing batch the per-object breakdown above is drawn from):
+  cone 0/3, triangular_prism 0/3, hexagonal_prism 0/3, square_pyramid
+  1/3. **No monotonic relationship between face count and failure rate**
+  -- if contact-duplication severity scaled with tessellation density,
+  cone (64 faces) should be the clear worst and square_pyramid (8 faces,
+  barely different from a primitive) should look closest to a clean
+  primitive's success rate; instead cone ties with the two
+  medium-tessellation objects at 0/3, and square_pyramid's one extra
+  success out of 3 trials is too small a sample to call a real effect
+  either way. This weakens (does not refute) "worse tessellation ->
+  more duplicate contacts -> more failure" as a clean causal story.
+- **Stronger new evidence, from objects already in the existing
+  per-object breakdown:** `rectangular_prism` and `cylindrical_prism`
+  are PRIMITIVES -- exact analytic MuJoCo geometry, no mesh, no
+  tessellation, none of the duplicate-contact-point artifact the cone
+  vs. sphere comparison found is even possible for them -- yet both
+  fail at 0/3, identical to the worst mesh objects. If mesh-collision
+  artifacts were the main driver of the mesh-object failures, a clean
+  analytic primitive sharing the same "flat-faced/angular" shape
+  category should do noticeably better than a mesh object; it doesn't.
+  **This is the most direct evidence yet that genuine shape difficulty
+  (not a MuJoCo mesh-tessellation artifact) is doing most of the work**
+  -- flat-faced, edged/cornered geometry seems to give the 5-fingered
+  hand less to cradle against regardless of whether that geometry is
+  represented as a mesh or an exact primitive.
+- **Important complication, found while checking this:** `cylindrical_prism`
+  (0/3) and `rod` (3/3) are BOTH primitive cylinders -- same curved-sided
+  topology, same "flat circular end caps" -- yet opposite outcomes.
+  The difference between them is size/aspect ratio (rod: r=0.008,
+  half-length=0.045, long and thin; cylindrical_prism: r=0.02,
+  half-length=0.03, short and fat), not flat-vs-curved shape category.
+  So "flat/angular vs. curved" is not a clean rule on its own either --
+  aspect ratio/size is a second, independent factor that can override it.
+- **Honest conclusion, and where this investigation stops (bounded, per
+  scope):** the balance of evidence shifted further toward genuine
+  graspability difficulty (shape + aspect ratio) over simulation
+  artifact as the dominant cause, mainly because exact analytic
+  primitives fail at the same rate as the worst mesh objects. But this
+  is a shift in balance of evidence, not a clean resolution -- the
+  real pattern looks genuinely multi-factor (flat/angular geometry AND
+  size/aspect ratio both matter, possibly interacting), and the original
+  cone-vs-sphere duplicate-contact-point finding is still real, just
+  probably more a symptom of an already-marginal grasp on a hard shape
+  than an independent cause. Going further than this (e.g. swapping
+  cone's mesh collision for a convex-hull-only primitive approximation
+  to directly test grasp quality independent of tessellation) would
+  require modifying how a mesh geom is declared/collided against in the
+  scene-construction code, which is a real change to try next, not a
+  read-only diagnostic -- out of this pass's bounded, read-only scope.

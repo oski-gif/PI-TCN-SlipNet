@@ -50,6 +50,36 @@ hold bonus). All of these are first-pass constants (CONTACT_COEF,
 INSTABILITY_COEF, DROP_THRESHOLD, ...) -- expect to retune them once real
 training curves are in hand, same as any new reward design.
 
+GRIP_FORCE_COEF (added after a design review, before any real training run
+existed to confirm or refute it): without it, phase 0/1 only rewards
+TOUCHING (contact_frac, a binary per-finger threshold) with no incentive to
+actually squeeze -- the only signal that a grip needs real force behind it
+arrives via the phase-2 slip/displacement penalty, ~100+ macro-steps later.
+That's a classic delayed-credit-assignment gap: a policy could satisfy the
+formation reward by lightly touching every finger without building a grip
+that has any chance of surviving the pull, and only find out it was wrong
+once it's too late in the episode to fix. The fix is a dense per-step
+reward on summed fingertip normal force (same quantity as
+grasp_force_at_settle elsewhere in this codebase), normalized by the
+object's own weight (so it means something physical -- "gripping with N
+multiples of this object's weight" -- rather than an arbitrary Newton
+scale that would mean something different for a 0.02kg vs 0.13kg object)
+and capped at GRIP_FORCE_CAP_MULTIPLE so the policy isn't rewarded for
+squeezing harder forever once it already has a comfortable margin.
+Checked empirically via smoke_test_rl_env.py before settling on these
+constants: an early GRIP_FORCE_COEF=0.5/cap=3.0 pass made per-episode
+total reward jump 5-40x (from the low-tens-negative range the v2 reward
+previously produced, under random actions, to the hundreds) because any
+real finger contact on an object this light clears several multiples of
+its own weight almost immediately, saturating the term on nearly every
+substep -- which would have made this term dominate contact_frac's
+(max 1.0/step) and instability's contribution outright, defeating the
+point of adding a secondary signal rather than replacing the existing
+one. GRIP_FORCE_COEF=0.15/cap=2.0 keeps its max per-substep contribution
+(0.3) below CONTACT_COEF's (1.0) while still being nonzero and present
+every step a finger is pressing -- a deliberate, documented first pass,
+not a tuned result from a real training curve (there isn't one yet).
+
 One RL step = ACTION_REPEAT physics steps (action held constant across
 them). A macro-step whose 5 physics substeps straddle a phase boundary
 (at most 2 such macro-steps per episode, out of ~450+) is scored using
@@ -84,6 +114,8 @@ CONTACT_COEF = 1.0
 INSTABILITY_COEF = 0.1
 DROP_THRESHOLD = 0.05  # meters fallen from spawn height counted as a drop
 DROP_PENALTY = 15.0
+GRIP_FORCE_COEF = 0.15  # see module docstring's GRIP_FORCE_COEF note
+GRIP_FORCE_CAP_MULTIPLE = 2.0  # saturate once grip exceeds 2x the object's own weight
 
 
 class SlipGraspEnv(gym.Env):
@@ -204,18 +236,24 @@ class SlipGraspEnv(gym.Env):
         obj_mass = float(model.body_mass[self.obj_body_id])
         g = float(np.linalg.norm(model.opt.gravity))
         self.pull_force_max = args.pull_multiple * obj_mass * g
+        self._obj_weight = obj_mass * g
 
+        # Instance state, not module globals on `cls` -- these are per-
+        # episode (friction/mass differ scene to scene), and a module global
+        # here would silently corrupt results the moment two SlipGraspEnv
+        # instances are ever live in the same process (predict_slip() takes
+        # these as explicit parameters now, see closed_loop_sim.py).
         feature_names = cls.build_feature_names(args.fingertips)
-        cls._keep_idx = [i for i, n in enumerate(feature_names) if n not in LEAKAGE_FEATURES]
+        self._keep_idx = [i for i, n in enumerate(feature_names) if n not in LEAKAGE_FEATURES]
         if cls._model is not None and args.in_channels in (23, 25):
             pad_frictions = list(actual["pad_friction"].values())
             pad_friction_mean = float(np.mean(pad_frictions)) if pad_frictions else 0.0
             friction_sliding = float(actual["friction"].split()[0])
             mu_combined = max(friction_sliding, pad_friction_mean)
-            cls._extra_scalars = ([mu_combined] if args.in_channels == 23
-                                   else [mu_combined, obj_mass])
+            self._extra_scalars = ([mu_combined] if args.in_channels == 23
+                                    else [mu_combined, obj_mass])
         else:
-            cls._extra_scalars = None
+            self._extra_scalars = None
 
         self.tangent_axes = [i for i in range(3) if i != args.normal_axis]
 
@@ -250,6 +288,14 @@ class SlipGraspEnv(gym.Env):
     def _touch_values(self):
         return [float(self._sensor_read(self.touch_ids[n])[0]) for n in self.args.fingertips]
 
+    def _grip_force_sum(self):
+        """Summed fingertip normal force -- same quantity as
+        grasp_force_at_settle elsewhere, used here as a dense per-step
+        formation-phase reward signal instead of a one-time settle-end
+        measurement. See GRIP_FORCE_COEF in the module docstring."""
+        return sum(float(self._sensor_read(self.force_ids[n])[self.args.normal_axis])
+                   for n in self.args.fingertips)
+
     def _observe_step(self, phase, pull):
         """Advances the tactile/slip-probability history by one physics
         step and returns the predicted slip probability for it."""
@@ -260,7 +306,7 @@ class SlipGraspEnv(gym.Env):
         tactile = raw[:self._tactile_dim]
         if len(self._full_history) == cls.WINDOW_SIZE:
             window = np.stack(self._full_history)
-            prob = cls.predict_slip(window)
+            prob = cls.predict_slip(window, self._keep_idx, self._extra_scalars)
         else:
             prob = 0.0
         row = np.concatenate([tactile, [pull, float(phase), prob]]).astype(np.float32)
@@ -330,7 +376,7 @@ class SlipGraspEnv(gym.Env):
         args = self.args
         last_prob, last_phase = 0.0, 0
         disp = 0.0
-        contact_reward_acc, instability_acc = 0.0, 0.0
+        contact_reward_acc, instability_acc, grip_force_acc = 0.0, 0.0, 0.0
         terminated, dropped = False, False
 
         for _ in range(ACTION_REPEAT):
@@ -359,12 +405,12 @@ class SlipGraspEnv(gym.Env):
 
             if step_idx == self._settle_end - 1:
                 self._ref_pos = self.data.xpos[self.obj_body_id].copy()
-                if cls._extra_scalars is not None and len(cls._extra_scalars) == 2:
+                if self._extra_scalars is not None and len(self._extra_scalars) == 2:
                     grasp_force_at_settle = sum(
                         float(self._sensor_read(self.force_ids[name])[args.normal_axis])
                         for name in args.fingertips
                     )
-                    cls._extra_scalars.append(grasp_force_at_settle)
+                    self._extra_scalars.append(grasp_force_at_settle)
 
             last_prob = self._observe_step(phase, pull)
             last_phase = phase
@@ -374,8 +420,11 @@ class SlipGraspEnv(gym.Env):
                                    if t > CONTACT_TOUCH_THRESHOLD) / len(args.fingertips)
                 obj_speed = float(np.linalg.norm(
                     self.data.qvel[self._dof_adr:self._dof_adr + 3]))
+                grip_force_frac = min(self._grip_force_sum() / max(self._obj_weight, 1e-8),
+                                      GRIP_FORCE_CAP_MULTIPLE)
                 contact_reward_acc += CONTACT_COEF * contact_frac
                 instability_acc += INSTABILITY_COEF * obj_speed
+                grip_force_acc += GRIP_FORCE_COEF * grip_force_frac
 
                 fall = self._spawn_pos[2] - self.data.xpos[self.obj_body_id][2]
                 if fall > DROP_THRESHOLD:
@@ -388,7 +437,7 @@ class SlipGraspEnv(gym.Env):
 
         slipped = False
         if last_phase < 2:
-            reward = (contact_reward_acc - instability_acc
+            reward = (contact_reward_acc + grip_force_acc - instability_acc
                      - EFFORT_COEF * float(np.mean(np.abs(action))))
             if dropped:
                 reward -= DROP_PENALTY

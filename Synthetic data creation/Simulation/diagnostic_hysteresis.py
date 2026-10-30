@@ -20,7 +20,10 @@ def make_hysteresis_policy(engage_threshold, disengage_threshold, alpha, step_fr
         state["smoothed"] = None
         state["engaged"] = False
 
-    def policy(slip_probability, driven_targets):
+    def policy(slip_probability, driven_targets, **kwargs):
+        # **kwargs absorbs run_trial()'s feats= kwarg (added later for a
+        # per-finger-localized policy variant) -- this policy doesn't use
+        # per-finger data, so it just ignores it, same behavior as before.
         if state["smoothed"] is None:
             state["smoothed"] = slip_probability
         else:

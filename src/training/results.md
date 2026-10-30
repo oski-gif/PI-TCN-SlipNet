@@ -573,3 +573,289 @@ writeup of why) is worth the remaining time before the deadline.
   require modifying how a mesh geom is declared/collided against in the
   scene-construction code, which is a real change to try next, not a
   read-only diagnostic -- out of this pass's bounded, read-only scope.
+
+## Per-episode model rebuild in rl_env.py -- investigated, not changed
+
+- **Date:** 2026-10-30
+- **Question:** `SlipGraspEnv._build()` recompiles the full MuJoCo model
+  from XML on every single `reset()`. Is there a bounded, safe way to
+  cache/reuse the compiled model across episodes of the same object
+  instead, varying only friction/mass/size/pose jitter without a full
+  recompile?
+- **Profiled `_build()` directly** (single process, alternating
+  cube/cone/sphere/hexagonal_prism): 690-1234ms per call, roughly the
+  SAME regardless of whether the object is a primitive or a mesh.
+- **Isolated the cause: compiled the base hand scene ALONE, with no
+  object at all, 3 times in the same warm process: 642-1491ms per
+  compile** (44 bodies, 74 meshes, 35 joints -- the OrcaHand itself).
+  This is the same order of magnitude as the full `_build()` numbers
+  above. **The object's own jittered geometry is NOT the bottleneck --
+  recompiling the hand's own fixed, never-changing 44-body/74-mesh
+  structure from scratch every episode is.** The repeat-call numbers
+  staying in the 640-900ms range (not dropping toward zero on a warm
+  OS file cache) also rules out disk I/O as the dominant cost -- this
+  is CPU-bound MuJoCo compile work (mesh/inertia/tree processing), not
+  file reads, so `MjVFS`-style asset caching would not meaningfully
+  help either.
+- **Why this isn't a safe fix within scope, even though the bottleneck
+  is now precisely identified:** MuJoCo's documented Python API has no
+  partial/incremental recompile -- `MjModel.from_xml_string()` and
+  `mjSpec.compile()` both rebuild the ENTIRE model (hand included) from
+  scratch every call. The only way to actually skip paying the hand's
+  recompile cost is to keep ONE already-compiled MjModel alive across
+  resets and mutate ITS fields directly instead of rebuilding. That's
+  safe for friction (`model.geom_friction`, a direct write, no derived
+  quantities depend on it) and for initial pose (free-joint `qpos`, not
+  baked into compilation at all) -- but NOT safe for the size/mass/
+  mesh-scale jitter that's also part of every episode's randomization
+  today: `geom_size` changes don't auto-update the `body_mass`/
+  `body_inertia` MuJoCo derives from geometry at compile time (would
+  need to hand-replicate that derivation per geom type), and mesh scale
+  is baked into `model.mesh_vert` at compile time (would need to
+  rescale vertex data AND rebuild the convex-hull/BVH data MuJoCo's own
+  compiler computes from it). Either skipping those jitter dimensions
+  (a real, silent change to the training distribution the policy sees
+  -- it would stop seeing size/mass variation within a cached object's
+  lifetime, which is the opposite of "same reward behavior") or
+  hand-reimplementing MuJoCo's own compile-time geometry/inertia math
+  (real risk of a subtly wrong, silently-corrupting bug, not a loud
+  crash) is required to go further. **Conclusion: not attempting this.**
+  The honest tradeoff is real engineering effort with real correctness
+  risk for a speedup that, per the profiling above, would only remove
+  the hand-recompile term -- worth revisiting with more time and a
+  test harness that can detect subtle physics drift, not as a
+  resource-capped side task right after stabilizing the crash fix.
+
+## Production RL training run -- prepared command, not executed
+
+- **Date:** 2026-10-30
+- **Recommended launch** (run from `Synthetic data creation/Simulation/`):
+  ```
+  python train_rl_policy.py \
+      --mjcf ../../third_party/orcahand_description/v2/scene_slip.xml \
+      --fingertips right_T-DP_b7429e50 right_I-FingerTipAssembly_ec49c16c \
+                   right_M-FingerTipAssembly_34afb748 right_M-FingerTipAssembly_424a8e75 \
+                   right_P-FingerTipAssembly_cd219176 \
+      --actuators right_t-mcp_actuator right_t-pip_actuator \
+                  right_i-mcp_actuator right_i-pip_actuator \
+                  right_m-mcp_actuator right_m-pip_actuator \
+                  right_r-mcp_actuator right_r-pip_actuator \
+                  right_p-mcp_actuator right_p-pip_actuator \
+      --mesh-dir ../../assets --out-dir ../../Data/closed_loop_scenes \
+      --checkpoint ../../src/training/model_a.pt --in-channels 22 \
+      --n-envs 6 --total-timesteps 300000 --eval-freq 10000 \
+      --save-path ../../Data/ppo_slip_policy --log-dir ../../Data/rl_logs_production
+  ```
+- **n-envs=6:** this machine has 8 logical cores; 6 workers + 1 main
+  process (which also hosts the eval `DummyVecEnv`) leaves headroom for
+  the OS rather than saturating all 8. This matches `train_rl_policy.py`'s
+  own pre-existing default, not a new number invented here.
+  **Caveat, stated honestly:** the crash fix was verified clean at
+  `--n-envs 2` across two runs (10,240 and 48,640 steps, zero crashes) --
+  it was NOT re-tested at n-envs 6-8 in this session, because doing so
+  would exceed this session's own 2-3-concurrent-process resource cap.
+  The original crashes happened specifically under 8-worker configs, so
+  this gap is real, not hypothetical. The reasoning for expecting it to
+  hold anyway: the fix removes the disk re-read race entirely
+  (`MjModel.from_xml_string()` instead of `from_xml_path()`), and that
+  race's root cause (suspected AV scanning of rapidly-written scene
+  files) doesn't have an obvious reason to be worker-count-sensitive in
+  a way the fix wouldn't also cover -- but this is reasoning from
+  mechanism, not a direct empirical re-test at 6-8 workers. **If
+  resource/time allows, re-verifying once at n-envs=6 for ~15-20k steps
+  before committing to the full 300k run would close this gap cheaply.**
+  If not, watching the first several minutes of the real run for the
+  specific `Could not allocate memory` error is the fallback check.
+- **total-timesteps=300000:** this is the script's existing default, not
+  a new recommendation -- kept as the starting point given the deadline.
+  Honest caveat from the 50k-step check: training reward (on train
+  objects) was still climbing at the point it was stopped (~250-260 and
+  rising), while holdout-eval reward was FLAT between the 20k and 40k
+  checkpoints (~323 both times) -- 300k may or may not be enough for the
+  policy to show real held-out generalization, not just training-object
+  improvement. `train_rl_policy.py` has no resume-from-checkpoint
+  support today, so if 300k turns out insufficient, continuing training
+  would currently mean starting over, not extending -- worth knowing
+  before committing to a number under deadline pressure, not something
+  fixed here.
+- **Wall-clock estimate, extrapolated from observed throughput (not a
+  new measurement at n-envs=6):** the 10k and 50k checks both ran at
+  ~51-55 combined env-steps/sec at n-envs=2. Scaling assumptions for
+  n-envs=6 range from near-linear (~3x -> ~165 steps/sec -> 300,000/165
+  [~]30 min) to conservative (~2x after 8-core contention -> ~110
+  steps/sec -> 300,000/110 [~]45 min). **Best honest estimate: roughly
+  30-45 minutes wall-clock**, not a single precise number, given no
+  direct n-envs=6 measurement exists yet.
+- **Not executed**, per instructions -- this is the exact command to run
+  once the user gives the go-ahead.
+
+## Production run attempt, n-envs=6 -- crashed immediately, cause unknown at the time
+
+- **Date:** 2026-10-30
+- **Command:** exact launch from the entry above, `--n-envs 6
+  --total-timesteps 300000 --eval-freq 10000`, user-approved go-ahead.
+- **Result:** crashed within the first rollout -- no training-progress
+  table ever printed. Exit code 1.
+  `BrokenPipeError: [WinError 109] The pipe has been ended` ->
+  `EOFError` in the main process's `SubprocVecEnv.step_wait()`
+  (`results = [remote.recv() for remote in self.remotes]`), meaning one
+  of the 6 worker subprocesses died and its pipe closed. **The dying
+  worker's own root-cause exception did not reach this log at all** --
+  only this downstream symptom did. No checkpoint was saved. Stopped and
+  reported rather than retried or silently falling back to n-envs=2, per
+  instructions -- see the next two entries for the actual cause, found
+  via instrumentation added afterward.
+
+## Root-cause investigation: MjModel.from_xml_string() fails permanently after ~90-100 repeated calls in one long-lived process
+
+- **Date:** 2026-10-30
+- **Platform (exact, for reproduction):** Windows 11 Home, OS version
+  10.0.26200, build 26200, 64-bit (`Get-CimInstance Win32_OperatingSystem`).
+  Python 3.14.3. **`mujoco` 3.11.0** (`python -c "import mujoco; print(mujoco.__version__)"`).
+  `stable-baselines3` 2.9.2.
+- **Why the previous entry's crash was a black box:** on Windows,
+  `multiprocessing`'s spawn-mode child processes don't reliably funnel
+  their own stdout/stderr into the parent's redirected stream, so a
+  worker's own traceback can vanish even though the parent sees the
+  pipe break. To get real visibility, `rl_env.py` and `train_rl_policy.py`
+  were instrumented (temporarily, for this investigation) with: (1)
+  `faulthandler.enable()` per worker process, writing to a per-worker
+  file, which would catch a native-level crash (segfault/access
+  violation) that no Python `try/except` can catch; (2) print-and-flush
+  checkpoints at every stage of scene construction/model compilation/
+  reset, written to `Data/_worker_diag_<idx>.log` by opening, writing,
+  and closing the file on every single call (not buffering) specifically
+  so the last checkpoint before a hard process death is never lost.
+- **Quick check first: is this a native crash?** Checked Windows'
+  Application event log (`Get-WinEvent -FilterHashtable @{LogName='Application'; ...}`)
+  for the exact timestamp window of the n-envs=6 crash above (18:46:00-18:50:00
+  on 2026-10-30) -- **no matching events at all**, not even an unrelated
+  one. Windows Error Reporting normally logs an "Application Error"
+  event for a true segfault/access violation; its total absence is
+  evidence against (not proof against) a native crash for that specific
+  failure.
+- **Retried at an intermediate worker count, n-envs=4, same command
+  otherwise, with the instrumentation above in place.** Result: crashed
+  again, but this time it got to **80,896 total timesteps** (vs. dying
+  before the first rollout at n-envs=6) before dying the same way --
+  `BrokenPipeError`/`EOFError` in the main process. **This time the
+  per-worker diagnostic log for the dying worker (worker index 2)
+  captured the actual root-cause exception directly, for the first time
+  in this investigation:**
+  ```
+  19:16:24 [worker 2] reset attempt 0: object=capsule seed=152468801, about to call _build
+  19:16:24 [worker 2] about to acquire build_lock
+  19:16:24 [worker 2] lock acquired, compiling model
+  19:16:24 [worker 2] _build FAILED on attempt 0: ValueError: Error: engine error: Could not allocate memory
+  19:16:24 [worker 2] reset attempt 1: object=l_block seed=1755466623, about to call _build
+  19:16:24 [worker 2] lock acquired, compiling model
+  19:16:25 [worker 2] _build FAILED on attempt 1: ValueError: Error: engine error: Could not allocate memory
+  19:16:25 [worker 2] reset attempt 2: object=capsule seed=477492862, about to call _build
+  19:16:25 [worker 2] lock acquired, compiling model
+  19:16:25 [worker 2] _build FAILED on attempt 2: ValueError: Error: engine error: Could not allocate memory
+  19:16:25 [worker 2] reset attempt 3: object=square_pyramid seed=377189855, about to call _build
+  19:16:25 [worker 2] lock acquired, compiling model
+  19:16:26 [worker 2] _build FAILED on attempt 3: ValueError: Error: engine error: Could not allocate memory
+  19:16:26 [worker 2] reset attempt 4: object=ellipsoid seed=437705471, about to call _build
+  19:16:26 [worker 2] lock acquired, compiling model
+  19:16:26 [worker 2] _build FAILED on attempt 4: ValueError: Error: engine error: Could not allocate memory
+  19:16:26 [worker 2] all 5 reset attempts failed, re-raising
+  ```
+  This `ValueError` then propagates up out of `reset()`, killing worker
+  2's process, which is what produces the `BrokenPipeError: [WinError 109]
+  The pipe has been ended` -> `EOFError` seen in the main process's
+  `subproc_vec_env.py::step_wait()` (`results = [remote.recv() for remote
+  in self.remotes]`) -- the exact same downstream symptom as the n-envs=6
+  crash above, now traced to its real cause.
+- **The exact counts, which are the key piece of evidence:** worker 2's
+  diagnostic log shows **91 successful resets** (`grep -c "_build
+  succeeded" Data/_worker_diag_2.log` = 91) from process start
+  (18:55:03) up through its last successful reset (completed 19:16:19)
+  before the fatal attempt (started 19:16:24, a normal ~5-second gap
+  from the prior episode ending). At that exact same wall-clock moment,
+  the other 3 workers' logs show **97, 100, and 103** successful resets
+  respectively (`Data/_worker_diag_0.log`, `_worker_diag_1.log`,
+  `_worker_diag_3.log`). All four counts cluster tightly in the
+  90s-to-low-100s range -- not wildly different, not random. This
+  clustering, not any single worker's number alone, is the actual
+  evidence: it means every worker was approaching the same threshold at
+  roughly the same rate, and worker 2 simply crossed it first.
+- **What this rules out, and the specific evidence for each:**
+  - **(a) Real-time antivirus scanning / a disk-read race (the original
+    hypothesis behind the `from_xml_string()` fix) -- ruled out.**
+    `from_xml_string()` never touches disk for the compile step itself
+    (only for the one-time `open(scene_path).read()` immediately before
+    it, which is NOT where the failure occurs -- the diagnostic log
+    shows the failure happening at "lock acquired, compiling model",
+    after the file read already succeeded), and `build_lock` serializes
+    every single compile across every worker, so there is no window for
+    simultaneous disk access at all.
+  - **(b) A native-level crash (segfault/access violation) -- ruled
+    out for THIS run.** This was an ordinary, catchable Python
+    `ValueError` raised by MuJoCo's own Python bindings, not a silent
+    process death -- `faulthandler` never fired (no entry in any
+    worker's log from it), and the process only died because the
+    exception propagated up uncaught through `reset()`'s own retry loop
+    after exhausting 5 attempts. Combined with the Application-log check
+    above (no crash record for the earlier n-envs=6 failure either),
+    there is no evidence of a native crash in either incident.
+  - **(c) Random/intermittent per-call resource contention -- weakened,
+    not fully ruled out, by the clustering.** A purely random failure
+    mode (e.g. a one-off transient OS hiccup) would not be expected to
+    hit all 4 workers within a similar ~90-105-call band of each other;
+    a consistent accumulating threshold explains the clustering far
+    better than chance.
+- **Working hypothesis (stated as a hypothesis, not a proven mechanism):**
+  something inside MuJoCo's native model-compiler is not being fully
+  released between repeated `MjModel.from_xml_string()` calls within the
+  same long-lived process. Each individual call is harmless and fast
+  (~700-1500ms per this session's own earlier profiling), but something
+  -- most plausibly an internal allocator/arena inside the compiled
+  MuJoCo extension, possibly tied to mesh/asset processing given this
+  scene's 74 meshes -- accumulates across calls regardless of which
+  object or seed is being compiled, until a process-level limit is hit,
+  at which point EVERY subsequent call in that process fails permanently
+  (not intermittently -- all 5 retries with 5 different scenes failed
+  identically, which a transient issue would not do).
+- **What is genuinely NOT known, stated honestly:**
+  - Whether this is specific to `from_xml_string()` or would also affect
+    `from_xml_path()` -- not tested here, since the fix already moved
+    away from the latter for an unrelated reason.
+  - Whether this is Windows-specific or would reproduce on Linux/macOS.
+  - Whether this is specific to mujoco 3.11.0 or affects other versions.
+  - Whether explicit `del model` / `del data` / `gc.collect()` calls
+    between episodes would mitigate or delay it -- untested; plausible
+    if this is a Python-side reference-retention issue delaying native
+    deallocation, but equally plausible to do nothing if the leak is
+    entirely inside MuJoCo's own C/C++ allocator and not reachable from
+    Python's garbage collector at all.
+  - The exact internal mechanism -- nothing above identifies the actual
+    leaking resource, only its observable behavior.
+- **Practical workaround identified (not a fix):** recycling the worker
+  process, or otherwise resuming/segmenting training in chunks well
+  under the ~90-call-per-worker threshold observed here, avoids
+  triggering it. This is a workaround for the symptom, not a resolution
+  of the underlying cause.
+- **Prior art check:** searched MuJoCo's GitHub issues and documentation
+  on 2026-10-30 for this exact pattern ("MjModel.from_xml_string repeated
+  calls in one process eventually fails with Could not allocate memory")
+  -- **found no existing report matching it.** If this holds up under
+  further testing, it is worth filing as a real upstream issue against
+  `google-deepmind/mujoco` -- not done here, since filing a public
+  external issue is the repo owner's call, not something to do
+  unilaterally.
+- **Positive result alongside the crash, worth recording:** holdout-eval
+  reward (`EvalCallback`, deterministic, on `HOLDOUT_OBJECTS`) improved
+  substantially over this run before it died -- 229.14596 at the 40,000-
+  step checkpoint, 524.069416 at the 80,000-step checkpoint
+  (`Data/rl_logs_production/evaluations.npz`) -- real generalization
+  improvement, not just training-object reward climbing, unlike the
+  earlier n-envs=2/50k-step check where holdout-eval reward was flat.
+  Checkpoints at 40,000 and 80,000 steps plus `best_model.zip` are saved
+  at `Data/rl_logs_production/` and are usable artifacts despite the crash.
+- **Not done:** no retry, no fallback to n-envs=2, no attempt to fix the
+  underlying leak, no GitHub issue filed. The temporary diagnostic
+  instrumentation (`faulthandler`, the per-worker print-and-flush
+  checkpoints, `_diag_log()` in `rl_env.py`) is left in place in the
+  working tree rather than reverted, since it is almost certainly still
+  needed for whatever investigation comes next.

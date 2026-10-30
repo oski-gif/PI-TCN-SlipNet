@@ -19,8 +19,10 @@ SubprocVecEnv -- this file must be run as a script, not imported):
         --total-timesteps 300000 --n-envs 6
 """
 import argparse
+import faulthandler
 import multiprocessing as mp
 import os
+import time
 
 # Must happen before torch is imported ANYWHERE in this process (including
 # transitively, via rl_env/closed_loop_sim below) -- torch reads this once
@@ -42,11 +44,33 @@ from rl_env import SlipGraspEnv
 
 HOLDOUT_OBJECTS = ["cone", "cylindrical_prism", "plus_cross", "sphere"]
 
+# TEMP DIAGNOSTIC (2026-10-30) -- investigating the n-envs=6 run that died
+# with BrokenPipeError/EOFError in the main process, with the actual dying
+# worker's own root-cause exception never reaching the combined log. Two
+# possibilities: (a) a hard native-level crash inside a compiled extension
+# (MuJoCo's own C/C++ code) that no Python try/except can catch, or (b) a
+# Windows spawn-mode stdout-redirection quirk hiding an ordinary Python
+# exception. faulthandler.enable() catches (a) -- it installs a signal-level
+# handler that dumps a traceback on segfault/access violation, which a plain
+# except block cannot do. The print-and-flush checkpoints below narrow down
+# WHICH stage a worker reached before dying even if neither faulthandler nor
+# a normal exception fires at all. Not production code -- remove once this
+# investigation concludes.
+_DIAG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Data")
 
-def make_env(args, object_names, episode_seed, build_lock):
+
+def make_env(args, object_names, episode_seed, build_lock, worker_idx):
     def _init():
+        diag_path = os.path.join(_DIAG_DIR, f"_worker_diag_{worker_idx}.log")
+        diag_fh = open(diag_path, "a", buffering=1)  # line-buffered, not block-buffered
+        faulthandler.enable(file=diag_fh)
+        diag_fh.write(f"{time.strftime('%H:%M:%S')} [worker {worker_idx}] "
+                      f"process started, faulthandler enabled\n")
+
         env = SlipGraspEnv(args, object_names, episode_rng_seed=episode_seed,
-                           build_lock=build_lock)
+                           build_lock=build_lock, worker_idx=worker_idx)
+        diag_fh.write(f"{time.strftime('%H:%M:%S')} [worker {worker_idx}] "
+                      f"SlipGraspEnv constructed, wrapping in Monitor\n")
         return Monitor(env)
     return _init
 
@@ -77,10 +101,12 @@ def main():
     build_lock = mp.get_context("spawn").Lock()
 
     eval_env = DummyVecEnv(
-        [make_env(args, HOLDOUT_OBJECTS, episode_seed=10_000, build_lock=build_lock)])
+        [make_env(args, HOLDOUT_OBJECTS, episode_seed=10_000, build_lock=build_lock,
+                  worker_idx="eval")])
 
     train_env = SubprocVecEnv(
-        [make_env(args, train_objects, episode_seed=i, build_lock=build_lock)
+        [make_env(args, train_objects, episode_seed=i, build_lock=build_lock,
+                  worker_idx=i)
          for i in range(args.n_envs)])
 
     model = PPO(

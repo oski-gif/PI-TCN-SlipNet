@@ -88,6 +88,7 @@ the bookkeeping to split it exactly.
 """
 import os
 import random
+import time
 
 import gymnasium as gym
 import numpy as np
@@ -97,6 +98,26 @@ from gymnasium import spaces
 import closed_loop_sim as cls
 from generate_trials import OBJECT_LIBRARY, OBJECT_BODY_NAME, _require_id
 from tcn import LEAKAGE_FEATURES
+
+# TEMP DIAGNOSTIC (2026-10-30) -- see train_rl_policy.py's matching comment.
+# Opens, writes, and closes the file on every call (no held-open handle,
+# no buffering) specifically so the LAST checkpoint before a hard process
+# death is never lost -- a buffered/batched write could still be sitting in
+# memory, never flushed to disk, at the exact moment a worker dies. Remove
+# once this investigation concludes.
+_DIAG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Data")
+
+
+def _diag_log(worker_idx, msg):
+    if worker_idx is None:
+        return
+    try:
+        path = os.path.join(_DIAG_DIR, f"_worker_diag_{worker_idx}.log")
+        with open(path, "a") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} [worker {worker_idx}] {msg}\n")
+    except OSError:
+        pass
+
 
 ACTION_REPEAT = 5
 OBS_WINDOW = 5
@@ -122,9 +143,11 @@ class SlipGraspEnv(gym.Env):
     metadata = {"render_modes": []}
 
     def __init__(self, args, object_names, device="cpu", force_cpu_model=True,
-                episode_rng_seed=None, build_lock=None):
+                episode_rng_seed=None, build_lock=None, worker_idx=None):
         super().__init__()
         self.args = args
+        self._worker_idx = worker_idx  # TEMP DIAGNOSTIC, see _diag_log above
+        _diag_log(worker_idx, "SlipGraspEnv.__init__ starting")
         # Several workers calling mujoco.MjModel.from_xml_path() at the
         # same instant reliably crashes with "MemoryError: bad allocation"
         # / "engine error: Could not allocate memory" -- looks like
@@ -145,8 +168,10 @@ class SlipGraspEnv(gym.Env):
         self.finger_pairs = [args.actuators[2 * i:2 * i + 2] for i in range(self.n_fingers)]
 
         if cls._model is None and args.checkpoint:
+            _diag_log(worker_idx, "about to load_model (TCN checkpoint)")
             cls.load_model(args.checkpoint, args.in_channels,
                            device="cpu" if force_cpu_model else None)
+            _diag_log(worker_idx, "load_model complete")
 
         tactile_dim = 4 * len(args.fingertips)
         self._tactile_dim = tactile_dim
@@ -160,6 +185,7 @@ class SlipGraspEnv(gym.Env):
         self.model = None
         self.data = None
         self._episode_rng = random.Random(episode_rng_seed)
+        _diag_log(worker_idx, "SlipGraspEnv.__init__ complete")
 
     def _compile_model(self, scene_path):
         """mujoco.MjModel.from_xml_path() raising "ValueError: Error:
@@ -178,23 +204,35 @@ class SlipGraspEnv(gym.Env):
         allocation error. Loading from an in-memory XML string instead of
         re-reading the path removes that disk round-trip entirely rather
         than trying to out-wait or out-guess the AV engine."""
+        _diag_log(self._worker_idx, f"_compile_model: read scene file {scene_path}")
         with open(scene_path, "r", encoding="utf-8") as f:
             xml_string = f.read()
         if self._build_lock is not None:
+            _diag_log(self._worker_idx, "about to acquire build_lock")
             with self._build_lock:
-                return mujoco.MjModel.from_xml_string(xml_string)
-        return mujoco.MjModel.from_xml_string(xml_string)
+                _diag_log(self._worker_idx, "lock acquired, compiling model")
+                model = mujoco.MjModel.from_xml_string(xml_string)
+            _diag_log(self._worker_idx, "model compiled, lock released")
+            return model
+        _diag_log(self._worker_idx, "no build_lock, compiling model directly")
+        model = mujoco.MjModel.from_xml_string(xml_string)
+        _diag_log(self._worker_idx, "model compiled")
+        return model
 
     def _build(self, object_name, seed):
         args = self.args
+        _diag_log(self._worker_idx, f"_build: about to build_scene XML for {object_name}")
         scene_path, obj_spec, actual = cls.build_scene(
             args.mjcf, args.mesh_dir, args.fingertips, object_name,
             args.object_pos, tuple(args.pad_friction_range),
             args.orientation_tilt_deg_max, seed, args.out_dir,
         )
+        _diag_log(self._worker_idx, f"_build: scene XML written to {scene_path}")
         self.obj_spec = obj_spec
         model = self._compile_model(scene_path)
+        _diag_log(self._worker_idx, "_build: MjData(model) next")
         data = mujoco.MjData(model)
+        _diag_log(self._worker_idx, "_build: MjData constructed, looking up sensor/actuator IDs")
 
         self.touch_ids = {n: _require_id(model, mujoco.mjtObj.mjOBJ_SENSOR,
                                           f"{n}_touch", "Touch sensor")
@@ -256,6 +294,7 @@ class SlipGraspEnv(gym.Env):
             self._extra_scalars = None
 
         self.tangent_axes = [i for i in range(3) if i != args.normal_axis]
+        _diag_log(self._worker_idx, "_build: complete")
 
     def _sensor_read(self, sid):
         adr = self.model.sensor_adr[sid]
@@ -322,13 +361,18 @@ class SlipGraspEnv(gym.Env):
         return np.concatenate(rows[-OBS_WINDOW:]).astype(np.float32)
 
     def reset(self, seed=None, options=None):
+        _diag_log(self._worker_idx, "reset() starting")
         super().reset(seed=seed)
         last_exc = None
         for attempt in range(5):
             object_name = self._episode_rng.choice(self.object_names)
             scene_seed = self._episode_rng.randint(0, 2**31 - 1)
+            _diag_log(self._worker_idx,
+                     f"reset attempt {attempt}: object={object_name} seed={scene_seed}, "
+                     f"about to call _build")
             try:
                 self._build(object_name, scene_seed)
+                _diag_log(self._worker_idx, f"_build succeeded on attempt {attempt}")
                 break
             except (ValueError, OSError) as e:
                 # ValueError: MuJoCo's own compile failure (see
@@ -337,8 +381,11 @@ class SlipGraspEnv(gym.Env):
                 # written file (same suspected cause, different failure
                 # mode). Draw a fresh (object, seed) pair and try again
                 # rather than let one bad sample/race kill the whole run.
+                _diag_log(self._worker_idx,
+                         f"_build FAILED on attempt {attempt}: {type(e).__name__}: {e}")
                 last_exc = e
         else:
+            _diag_log(self._worker_idx, "all 5 reset attempts failed, re-raising")
             raise last_exc
 
         free_joint_id = _require_id(self.model, mujoco.mjtObj.mjOBJ_JOINT,
@@ -364,6 +411,7 @@ class SlipGraspEnv(gym.Env):
 
         obs = self._obs_from_buffer()
         info = {"object": object_name, "seed": scene_seed}
+        _diag_log(self._worker_idx, "reset() complete")
         return obs, info
 
     def step(self, action):

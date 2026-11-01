@@ -859,7 +859,6 @@ writeup of why) is worth the remaining time before the deadline.
   checkpoints, `_diag_log()` in `rl_env.py`) is left in place in the
   working tree rather than reverted, since it is almost certainly still
   needed for whatever investigation comes next.
-
 ## Failure-mode breakdown of the 27 failed trials in the 40.0% clean comparison
 
 - **Date:** 2026-10-30
@@ -1808,3 +1807,16 @@ writeup of why) is worth the remaining time before the deadline.
   being made on this finding alone. The `cube`/`flat_disk` slow-sag
   pattern looks different again and may need its own explanation before
   any fix is attempted there specifically.
+
+## Maintenance note, 2026-10-31 -- latent 25ch issue in rl_env.py (suggestion only, not changed)
+
+- Static read only (no simulation run). `SlipGraspEnv._observe_step()` calls
+  `predict_slip()` as soon as the history holds `WINDOW_SIZE` (300) steps,
+  but with `--in-channels 25` the third extra scalar (`grasp_force_at_settle`)
+  is only appended at the end of settle (step `ramp_steps + settle_steps`,
+  800 by default). Between step 300 and step 800 `predict_slip()` would
+  receive 24 columns instead of 25 and fail with a shape mismatch.
+  `closed_loop_sim.run_trial()` does not have this problem because it only
+  predicts in phase 2. Does not affect any run logged so far (all RL runs
+  use the 22-channel Model A). Suggested fix if RL is ever run with
+  Model B 25ch: skip prediction (use 0.0) until `_extra_scalars` is complete.

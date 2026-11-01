@@ -208,11 +208,22 @@ def build_scene(mjcf_path, mesh_dir, fingertip_names, object_name,
     return scene_path, obj_spec, actual
 
 
-def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True):
+def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True,
+             step_callback=None):
     """Runs ONE full trial (ramp -> settle -> monitor-with-pull) and returns
     a result dict. Assumes load_model() was already called if you want real
     predictions -- otherwise predict_slip() stays a 0.0 stub and
     decide_action() never fires.
+
+    step_callback: optional callable(step, phase, driven, data, disp), called
+    every simulation step right after mj_step -- added for
+    diagnostic_actuator_saturation.py's investigation (2026-10-30) into
+    whether failed trials' displacement "runaway" corresponds to driven
+    actuators pinned at their ctrlrange max, rather than inferring it
+    circumstantially from n_corrections/max_slip_probability alone. `driven`
+    is the live dict of {aid: [lo, hi, target]} -- `data.ctrl[aid]` is the
+    actually-applied value, `hi` is the ctrlrange max. Default None (no-op),
+    zero behavior/performance change for every other caller.
 
     Returns dict with: object, seed, slipped (bool, displacement exceeded
     the SAME per-object threshold definition generate_trials.py uses),
@@ -377,6 +388,11 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
             if ref_pos is not None:
                 disp = float(np.linalg.norm(data.xpos[obj_body_id] - ref_pos))
                 max_displacement = max(max_displacement, disp)
+            else:
+                disp = 0.0
+
+            if step_callback is not None:
+                step_callback(step, phase, driven, data, disp)
 
             feats = read_features(phase, pull)
             feature_history.append(feats)

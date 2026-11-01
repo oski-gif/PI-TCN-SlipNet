@@ -85,6 +85,67 @@ them). A macro-step whose 5 physics substeps straddle a phase boundary
 (at most 2 such macro-steps per episode, out of ~450+) is scored using
 only its LAST substep's phase -- a known, negligible edge case, not worth
 the bookkeeping to split it exactly.
+
+MIN_FINGER_FRACTION_COEF (added 2026-10-31, after the first full 300k-step
+training run and its real evaluation): `diagnostic_formation_drop.py` found
+the trained policy had learned to NEVER close one specific finger (the
+middle finger, actuator pair index 2) AT ALL -- fraction locked at exactly
+0.0 -- on every single object tested, including ones it holds perfectly
+(sphere, cone, capsule, dumbbell), not just the 4 it drops during formation
+(cube, rectangular_prism, flat_disk, l_block). A universal 4-finger
+strategy is enough margin for curved/pointed/thin objects but not for
+flat/boxy/asymmetric ones, which is exactly the failure pattern observed.
+Root cause, inferred from the reward terms above rather than proven: both
+`CONTACT_COEF*contact_frac` and `GRIP_FORCE_COEF*grip_force_frac` are
+AGGREGATE/MEAN-style terms across all 5 fingers -- a policy can max out
+`grip_force_frac` (it saturates at GRIP_FORCE_CAP_MULTIPLE) using only 4
+fingers' force, and `contact_frac` only loses 0.2/step (1/5 of
+CONTACT_COEF) for leaving one finger idle, not enough to reliably escape
+the local optimum of "4 fingers is already working, stop there" once
+training settles into it. Neither term can express "finger N specifically
+is idle" -- only "what fraction/how much force in aggregate."
+MIN_FINGER_FRACTION_COEF fixes this directly rather than by reweighting
+the existing aggregate terms (a less targeted fix the same investigation
+considered and rejected -- raising CONTACT_COEF's weight is still just a
+steeper version of the same mean-based incentive, which doesn't change
+WHICH 4-of-5 fingers the policy locks onto, it just makes locking onto any
+4 slightly more/less rewarding than before): it rewards `min(self.fraction)`
+-- the WORST-engaged finger's own commanded ctrlrange fraction, not an
+average. This is a maximin-style incentive: no amount of over-closing the
+other 4 fingers can compensate for leaving a 5th one idle, since the term
+is exactly 0 as long as ANY single finger stays at 0, regardless of what
+the rest are doing. Deliberately rewards the COMMANDED fraction, not
+measured touch -- the finding was that the policy never even attempted to
+close that finger, not that it tried and failed to make contact, so the
+fix targets the actual observed symptom (no attempt) rather than a
+stricter, measured-contact version that could penalize objects where a
+given finger's contact is genuinely geometry-dependent and not always
+achievable regardless of effort.
+
+MIN_FINGER_FRACTION_COEF, escalated 0.5 -> 3.0 (2026-10-31, same day):
+the 0.5 first pass was sanity-checked on a 15,000-step CONTINUATION from
+the already-converged 300k-step checkpoint -- the middle finger's
+fraction did not move AT ALL (still exactly 0.0 on every object checked,
+unchanged from before the fix). At 0.5, this term's max per-substep
+contribution (0.5) was smaller than CONTACT_COEF's (1.0) -- not dominant
+enough to outweigh 300k steps of reinforcement behind the existing
+4-finger habit, if that's really why it didn't move (a continuation
+fighting an entrenched policy is a weaker test than training from
+scratch, so the 0.5 result doesn't by itself prove the term is too weak
+in general, only that it wasn't strong enough to win against that
+specific, heavily-trained incumbent). 3.0 makes this term's max
+contribution (3.0) the clearly dominant term in the formation-phase
+reward -- 3x CONTACT_COEF's own max and 10x GRIP_FORCE_COEF's -- a
+deliberately aggressive escalation rather than a small nudge, on the
+theory that if a gentle version can't move an entrenched habit, the fix
+being tested is whether a strong enough one can, not whether a slightly
+stronger one can. Not yet re-validated against a real training curve at
+this new magnitude -- next step after this escalation is itself a fresh
+full retrain regardless of what a short continuation check shows (a
+continuation was already shown to be a weak/ambiguous test either way),
+so unlike GRIP_FORCE_COEF's original tuning, this value is not expected
+to be re-adjusted further before that full run -- see results.md for the
+decision trail.
 """
 import os
 import random
@@ -137,6 +198,7 @@ DROP_THRESHOLD = 0.05  # meters fallen from spawn height counted as a drop
 DROP_PENALTY = 15.0
 GRIP_FORCE_COEF = 0.15  # see module docstring's GRIP_FORCE_COEF note
 GRIP_FORCE_CAP_MULTIPLE = 2.0  # saturate once grip exceeds 2x the object's own weight
+MIN_FINGER_FRACTION_COEF = 3.0  # see module docstring's MIN_FINGER_FRACTION_COEF note
 
 
 class SlipGraspEnv(gym.Env):
@@ -363,10 +425,20 @@ class SlipGraspEnv(gym.Env):
     def reset(self, seed=None, options=None):
         _diag_log(self._worker_idx, "reset() starting")
         super().reset(seed=seed)
+        # Standard Gymnasium reset-time configuration, wired up for a
+        # specific, reproducible (object, seed) pair -- needed for an
+        # apples-to-apples closed-loop success-rate evaluation of a
+        # trained policy against the same 15-objects x 3-seeds benchmark
+        # used for every hand-tuned-policy comparison in results.md,
+        # instead of the random draw from self._episode_rng used during
+        # training (unaffected when options is None, the normal case).
+        forced_object = options.get("object_name") if options else None
+        forced_seed = options.get("scene_seed") if options else None
         last_exc = None
         for attempt in range(5):
-            object_name = self._episode_rng.choice(self.object_names)
-            scene_seed = self._episode_rng.randint(0, 2**31 - 1)
+            object_name = forced_object or self._episode_rng.choice(self.object_names)
+            scene_seed = (forced_seed if forced_seed is not None
+                          else self._episode_rng.randint(0, 2**31 - 1))
             _diag_log(self._worker_idx,
                      f"reset attempt {attempt}: object={object_name} seed={scene_seed}, "
                      f"about to call _build")
@@ -424,7 +496,7 @@ class SlipGraspEnv(gym.Env):
         args = self.args
         last_prob, last_phase = 0.0, 0
         disp = 0.0
-        contact_reward_acc, instability_acc, grip_force_acc = 0.0, 0.0, 0.0
+        contact_reward_acc, instability_acc, grip_force_acc, min_finger_acc = 0.0, 0.0, 0.0, 0.0
         terminated, dropped = False, False
 
         for _ in range(ACTION_REPEAT):
@@ -470,9 +542,11 @@ class SlipGraspEnv(gym.Env):
                     self.data.qvel[self._dof_adr:self._dof_adr + 3]))
                 grip_force_frac = min(self._grip_force_sum() / max(self._obj_weight, 1e-8),
                                       GRIP_FORCE_CAP_MULTIPLE)
+                min_finger_frac = min(self.fraction)
                 contact_reward_acc += CONTACT_COEF * contact_frac
                 instability_acc += INSTABILITY_COEF * obj_speed
                 grip_force_acc += GRIP_FORCE_COEF * grip_force_frac
+                min_finger_acc += MIN_FINGER_FRACTION_COEF * min_finger_frac
 
                 fall = self._spawn_pos[2] - self.data.xpos[self.obj_body_id][2]
                 if fall > DROP_THRESHOLD:
@@ -485,7 +559,7 @@ class SlipGraspEnv(gym.Env):
 
         slipped = False
         if last_phase < 2:
-            reward = (contact_reward_acc + grip_force_acc - instability_acc
+            reward = (contact_reward_acc + grip_force_acc + min_finger_acc - instability_acc
                      - EFFORT_COEF * float(np.mean(np.abs(action))))
             if dropped:
                 reward -= DROP_PENALTY

@@ -859,3 +859,871 @@ writeup of why) is worth the remaining time before the deadline.
   checkpoints, `_diag_log()` in `rl_env.py`) is left in place in the
   working tree rather than reverted, since it is almost certainly still
   needed for whatever investigation comes next.
+
+## Failure-mode breakdown of the 27 failed trials in the 40.0% clean comparison
+
+- **Date:** 2026-10-30
+- **Why:** a research suggestion proposed that some "failures" might
+  actually be late-but-successful catches -- the controller stops the
+  slip, but the object had already crossed the displacement threshold
+  moments earlier, so a genuinely near-miss trial scores identically to
+  a total grip failure. Cheap to check: `Data/closed_loop_scenes/
+  batch_results.jsonl` already has `max_displacement`/`threshold`/
+  `n_corrections`/`max_slip_probability` per trial from the existing
+  45-trial tuned-policy batch (confirmed 18/45 = 40.0% held securely,
+  matching "THE clean comparison" entry above) -- no new simulation
+  needed, just analysis of data already on disk.
+- **Result: the near-miss theory does NOT hold here.** Of the 27 failed
+  trials, only 3 (11%) overshot the threshold by <=1.5x. Median overshoot
+  was 6.34x; 15 of 27 (56%) overshot by more than 3x, several by
+  20-33x (`ellipsoid`, `cube` seed 1/2, `cylindrical_prism`, `plus_cross`
+  all exceeded displacement 20x their threshold). Most failures are not
+  close calls -- the object moves far past the line, not barely past it.
+- **But splitting failures by `n_corrections` and `max_slip_probability`
+  reveals two distinct failure modes that the single "slipped" boolean
+  was hiding:**
+  - **Detection misses (6 of 27 failures, the lowest-overshoot group,
+    1.04x-2.57x):** `max_slip_probability` stayed low (0.20-0.40) and
+    `n_corrections` was near zero -- `hexagonal_prism` seed 0 and
+    `square_pyramid` seed 1 triggered **zero** corrections for the
+    entire trial. The object slipped and the controller essentially
+    never tried, because the model's own predicted probability never
+    crossed `decide_action()`'s 0.3 trigger threshold strongly enough.
+    This is a model-sensitivity problem, not a control-policy problem.
+  - **Saturation despite correct detection (21 of 27 failures, nearly
+    all the moderate-to-catastrophic ones):** `max_slip_probability`
+    0.92-1.0 (the model was confident and correct) and `n_corrections`
+    mostly 250-330+ out of the trial's step budget -- the controller is
+    firing a correction almost every single monitored step -- yet
+    displacement still runs out to 7x-33x past threshold anyway. The
+    model worked; the correction had nowhere left to go. This matches
+    the actuator-saturation hypothesis flagged on 2026-10-25
+    ("`decide_action()`'s own formula... shrinks toward zero as the
+    grip approaches its ctrlrange max") but never directly confirmed
+    until this breakdown.
+- **Why this matters:** it gives a concrete explanation for why all four
+  independently-tested control-policy changes (squeeze-intensity sweep,
+  fixed-step correction, hysteresis, per-finger localization) failed to
+  move the 40.0% number. Every one of them only changes the correction
+  *formula*. The detection-miss group never calls the formula in the
+  first place (gated out below the trigger threshold); the saturation
+  group calls it almost continuously with no physical actuator headroom
+  left for it to act on. Neither failure mode is reachable by tuning how
+  the correction itself is computed -- which is exactly the class of fix
+  all four prior attempts were.
+- **Not yet done (at the time this entry was first written):** this
+  analysis inferred saturation circumstantially (high trigger rate +
+  high confidence + failure anyway) from existing summary statistics --
+  it did not directly inspect per-step `ctrl` values against `ctrlrange`
+  to confirm actuators were actually pinned at their limit. See the
+  entry directly below, which closes this gap. The detection-miss
+  group's root cause is addressed in the entry after that.
+
+## Actuator saturation -- directly confirmed, no longer circumstantial
+
+- **Date:** 2026-10-30
+- **Method:** added an optional `step_callback(step, phase, driven, data,
+  disp)` parameter to `closed_loop_sim.py`'s `run_trial()` (default
+  `None`, zero behavior change for every other caller -- called once per
+  simulation step, right after `mj_step`, with the live `driven` dict of
+  `{aid: [lo, hi, target]}` and the actual `data.ctrl[aid]`). New
+  `diagnostic_actuator_saturation.py` uses it to record, for every driven
+  actuator at every phase-2 (monitoring/pull) step, the fraction of its
+  ctrlrange closed: `(ctrl - lo) / (hi - lo)`, where 1.0 means pinned at
+  the physical maximum. Tested on 7 trials from the saturation group
+  identified in the entry above: `cube` seed 1/2, `ellipsoid` seed 0/2,
+  `cylindrical_prism` seed 0/1/2.
+- **Result: confirmed directly, for all 7 trials, with no exceptions.**
+  By the end of phase 2, every single trial shows mean AND max fraction-
+  closed across all driven actuators = **exactly 1.0000** -- every
+  actuator is pinned at its exact ctrlrange maximum when the trial ends.
+  Across the whole phase-2 window (not just the end), the fraction of
+  steps where ALL driven actuators were simultaneously within 1% of
+  their max ("pinned") ranged from 30.5% (`cylindrical_prism` seed=1) to
+  88.2% (`cube` seed=1, `cylindrical_prism` seed=2), and the mean
+  fraction-closed averaged across the whole window was 0.976-0.996 for
+  every trial -- i.e. actuators spend the large majority of the
+  monitoring phase already very close to their limit, not just at the
+  very end:
+  ```
+  cube               seed=1  pinned 88.2% of phase 2, mean_frac_closed_avg=0.9944, ends at 1.0000/1.0000
+  cube               seed=2  pinned 87.6% of phase 2, mean_frac_closed_avg=0.9942, ends at 1.0000/1.0000
+  ellipsoid          seed=0  pinned 83.2% of phase 2, mean_frac_closed_avg=0.9921, ends at 1.0000/1.0000
+  ellipsoid          seed=2  pinned 62.3% of phase 2, mean_frac_closed_avg=0.9816, ends at 1.0000/1.0000
+  cylindrical_prism  seed=0  pinned 84.4% of phase 2, mean_frac_closed_avg=0.9929, ends at 1.0000/1.0000
+  cylindrical_prism  seed=1  pinned 30.5% of phase 2, mean_frac_closed_avg=0.9760, ends at 1.0000/1.0000
+  cylindrical_prism  seed=2  pinned 88.2% of phase 2, mean_frac_closed_avg=0.9959, ends at 1.0000/1.0000
+  ```
+- **This is no longer a hypothesis.** The actuator-saturation explanation
+  for why all four independently-tested control-policy changes (squeeze
+  sweep, fixed-step, hysteresis, per-finger localization) failed to move
+  40.0% is now directly, empirically confirmed for the trials tested --
+  by the time displacement is running away, the grip has no physical
+  room left to close further, regardless of what `decide_action()`'s
+  formula computes. Any further fix for this specific failure mode has
+  to either (a) start with a tighter/different squeeze so there's
+  headroom left in reserve for phase 2 (already tested as a global
+  sweep and plateaued, per the squeeze_intensity entry above -- would
+  need a smarter per-object or adaptive-formation approach, not a global
+  constant), or (b) resist the pull some other way than closing fingers
+  further (e.g. a fundamentally different grasp strategy), which is
+  exactly the motivation already behind the RL formation+correction
+  scope expansion.
+
+## Detection-miss root cause -- strongly correlated with mesh-kind geometry, not fully disentangled from slip severity
+
+- **Date:** 2026-10-30
+- **Method:** cross-referenced every trial's `object_kind` (`primitive`/
+  `mesh`/`compound`, from `OBJECT_LIBRARY` in `generate_trials.py`)
+  against the detection-miss (`max_slip_probability<0.5`) vs. saturation
+  (`>=0.9`) classification from the failure-mode-breakdown entry above.
+  No new simulation -- pure analysis of `Data/closed_loop_scenes/
+  batch_results.jsonl`, already on disk.
+- **Result: a strong, nearly bimodal split by object kind.**
+  ```
+  kind         total  failed  detection_miss  saturation  ambiguous
+  primitive    24     12      0               11          1
+  mesh         12     11      9               1           1
+  compound     9      4       1               3           0
+  ```
+  **Primitives essentially never produce a detection miss** (0 of 12
+  primitive failures) -- when a primitive object fails, the model is
+  confident and the controller tries hard anyway (saturation). **Mesh
+  objects are the opposite**: 9 of 11 mesh failures (82%) are detection
+  misses. The one compound-object detection miss is `l_block` seed=0;
+  `l_block` seeds 1/2 both held securely, so `l_block` is not a
+  systematically weak-signal object overall -- seed 0 looks like an
+  individual borderline case, not a pattern, and is not chased further
+  here.
+- **A real, carefully-checked confound: detection-miss trials also have
+  much lower overshoot** (1.04x-3.17x, i.e. marginal/slow slips) than
+  saturation-group trials (mostly 7x-33x, i.e. severe/fast slips) --
+  raising the alternative explanation that weak signal might just
+  reflect a slower-developing, inherently harder-to-detect physical
+  event, independent of mesh vs. primitive geometry.
+- **This confound is at least partially disentangled by a direct natural
+  comparison: `flat_disk` (primitive) seed=1 vs. `square_pyramid` (mesh)
+  seed=1/2.** `flat_disk` seed=1 has an almost identically marginal
+  overshoot (1.04x) to `square_pyramid` seed=2 (1.42x) -- yet `flat_disk`
+  seed=1 produced `max_slip_probability=0.934` (confident, correctly
+  detected) while `square_pyramid` seed=1/2 produced 0.249/0.362 (weak,
+  missed), despite seed=1's overshoot (2.57x) being LARGER than
+  `flat_disk`'s. If marginal-overshoot-alone explained weak signal,
+  `flat_disk` seed=1 should have been just as weak as `square_pyramid`'s
+  -- it wasn't. **This favors mesh-kind geometry itself as the stronger
+  driver**, not just "these happen to be slow/marginal slips," though it
+  does not rule out slip-severity as a contributing secondary factor
+  (the two are still correlated in this dataset, just not perfectly).
+- **Plausible causal chain (stated as a hypothesis):** the already-
+  established mesh-collision contact-point messiness (cone vs. sphere,
+  "Object-geometry investigation" entry above -- duplicated/near-
+  identical contact points on mesh objects) produces atypical per-step
+  tactile readings during the actual slip event, not just at the
+  settle-end snapshot originally checked -- readings that don't resemble
+  the training distribution's typical "clearly slipping" pattern closely
+  enough for the model to respond with high confidence. This would mean
+  the SAME mesh-collision artifact already implicated in grip-security
+  failure is ALSO degrading the slip-detection model's input quality for
+  these objects -- two symptoms of one underlying cause, not two
+  separate problems.
+- **What this does NOT resolve** this is a correlation
+  from existing summary statistics plus one disentangling comparison,
+  not a mechanistic confirmation -- it does not inspect the actual raw
+  per-step tactile traces for a mesh-object slip event to directly show
+  an atypical signature (the kind of thing `diagnostic_visualize_onset.py`
+  already does for slip-vs-stable in general, but not yet re-run split by
+  object_kind specifically). That would be the natural next step if this
+  thread is picked up again, but is not done here -- bounded per scope.
+
+## Independent corroboration: mesh objects are NOT physically harder to hold
+
+- **Date:** 2026-10-30
+- **Why:** re-examined `Data/manifest_full_merged.json` -- the full
+  20,000-trial OPEN-LOOP dataset (9 generation batches, no corrective
+  control, `generate_trials.py`'s scripted squeeze/pull schedule) that
+  the slip-detection model was actually trained on, not the 45-trial
+  closed-loop batch every prior object-geometry finding was based on.
+  17,514 trials had contact. This is a much larger, independent data
+  source for the same question: are mesh objects genuinely harder to
+  physically hold, or is that specific to the closed-loop setup?
+- **At the full dataset's broad condition range (squeeze_intensity
+  0.5-1.0, pull_multiple 0.5-3x, both randomized per trial), mesh
+  objects are NOT uniquely bad.** Per-object slip rate: cone 0.642,
+  hexagonal_prism 0.773, square_pyramid 0.695, triangular_prism 0.706 --
+  but primitive `cylindrical_prism` is 0.822 and `ellipsoid` is 0.724,
+  both equal to or worse than every mesh object. `n_fingers_contacted`
+  shows no mesh-specific deficit either (mesh objects average 3.46-3.62
+  fingers touching, squarely inside the same 3.1-3.8 range as
+  primitives/compounds).
+- **Narrowed to the closed-loop batch's actual regime (squeeze>=0.9,
+  pull in [1.2, 1.8x], n=475 trials, 15-39 per object -- small enough
+  that individual percentages carry real sampling noise, treat as
+  directional):** mesh objects average 57.2% slip vs. 40.4% for
+  non-mesh -- a real gap, but far smaller than the near-0%-vs-high-
+  success split seen in the actual closed-loop batch. And the ranking
+  is not clean: `cylindrical_prism` (primitive) has the HIGHEST slip
+  rate of all 15 objects here (96.7%, n=30) -- worse than any mesh
+  object -- while `triangular_prism` (mesh) is comparatively low
+  (33.3%, n=27). Finger-contact count again shows no mesh-specific
+  pattern (mesh objects 4.52-4.78, same range as everything else,
+  several primitives at exactly 5.0).
+- **What this means, combined with the detection-miss finding directly
+  above:** mesh objects do NOT have a clearly, consistently higher
+  open-loop physical slip propensity than several primitives -- so
+  "genuine shape difficulty" as a blanket explanation for the closed-
+  loop batch's near-total mesh failure is not well supported by this
+  independent, much larger dataset. What mesh objects DO have, per the
+  entry directly above, is a strong, disentangled concentration of
+  DETECTION misses (9/11 mesh closed-loop failures vs. 0/12 primitive
+  failures). Put together: the likely mechanism is signal quality, not
+  physical difficulty -- mesh contact geometry (the duplicated/near-
+  identical contact points already found in the earlier contact-
+  geometry diagnostic) probably degrades the tactile *reading* without
+  the object being any more prone to actually slipping. This sharpens
+  rather than contradicts the detection-miss entry -- it rules out the
+  competing "mesh objects are just physically harder" explanation using
+  a 20,000-trial dataset the earlier finding never had access to.
+- **Caveat, stated honestly:** the open-loop dataset and the closed-
+  loop batch are different experiments (no corrective control vs. active
+  correction; a wide randomized squeeze/pull range vs. one fixed
+  condition) -- this is the best available proxy for "is this object
+  physically harder," not a direct replication. The narrowed subset's
+  small per-object n (15-39) means its specific percentages, especially
+  the 0.0% rates for `dumbbell`/`flat_disk`, should be treated as
+  directional, not precise.
+
+## Resumed-training segment 1 crash -- likely self-inflicted confound, not confirmed as the same leak
+
+- **Date:** 2026-10-30
+- **What happened:** after `--resume-from` was verified clean (80,000 ->
+  95,360 steps, reward continuity confirmed), segment 1 of the full
+  remaining run (resuming from 95,360 toward a 145,000 target) crashed
+  with the same `BrokenPipeError`/`EOFError` symptom in the main process
+  at total_timesteps=112,768 (per the orchestrator log) -- a worker died.
+- **This does NOT look like the same leak, and the likely cause is
+  self-inflicted.** Two concrete differences from the previously-confirmed
+  leak pattern: (1) **reset counts were far lower this time** -- the
+  dying worker (worker 2) had completed only 14 successful resets
+  (workers 0/1/3 were at 15/14/13), nowhere near the ~90-103 range where
+  the leak previously manifested; (2) **the failure signature itself is
+  different** -- worker 2's diagnostic log shows it got stuck exactly at
+  `"lock acquired, compiling model"` at 22:25:48 with NO further log line
+  at all (no "model compiled", no "FAILED on attempt N") -- a silent
+  hang/death mid-call, not the clean, logged `ValueError: Could not
+  allocate memory` exception seen in the confirmed-leak incident.
+- **The suspicious coincidence:** at essentially the same wall-clock
+  moment (22:25:48), a separate diagnostic script
+  (`diagnostic_lower_threshold.py`, run concurrently with training on
+  the theory that a single-process CPU diagnostic wouldn't meaningfully
+  compete for resources) was launched and itself failed with `OSError:
+  [WinError 1114] A dynamic link library (DLL) initialization routine
+  failed. Error loading "...torch\lib\nvperf_host.dll"` -- a CUDA/GPU-
+  driver-level DLL init failure. That script calls
+  `closed_loop_sim.load_model()` with no explicit `device=`, which
+  auto-detects and attempts to initialize CUDA -- unlike every training
+  worker, which explicitly forces `device="cpu"\` specifically to avoid
+  multi-process CUDA-context contention (see `load_model()`'s own
+  docstring, which already documents a DIFFERENT real torch/CUDA
+  inconsistency found earlier this project). It is plausible that this
+  second process's CUDA initialization attempt, running at the same
+  moment as 4 other worker processes, disrupted something at the
+  GPU-driver or OS-loader level that caused worker 2's (CPU-only,
+  CUDA-unrelated) MuJoCo compile call to hang or die -- but this is
+  **not confirmed, only strongly correlated by timing.**
+- **What this means, stated honestly:** this incident should NOT be
+  counted as new evidence about the ~90-100-reset leak's behavior (it
+  happened at a much lower reset count, under what looks like a
+  different, confounded condition). It also should not be treated as
+  disproving the leak either -- it's simply inconclusive on that
+  question. The actionable lesson is methodological: **do not run any
+  torch/CUDA-touching script concurrently with the multi-worker CPU-only
+  training**, even though the training workers themselves never touch
+  CUDA -- the mere attempt by an unrelated process to initialize CUDA on
+  the same machine may be able to disrupt it. Fixed going forward by
+  having `diagnostic_lower_threshold.py` force `device="cpu"` explicitly
+  (same as every training worker) rather than auto-detecting, so it's
+  actually safe to run concurrently in the future. Segment 1 was
+  relaunched solo (no concurrent diagnostic) to get an unconfounded
+  read -- see the next entry for that result.
+
+## Resumed-training segment 1, solo retry -- a genuine SIGSEGV, not the confound, and not the ~90-reset pattern either
+
+- **Date:** 2026-10-30
+- **What happened:** segment 1 was relaunched with no concurrent process
+  running at all (ruling out the suspected confound above). It crashed
+  again, but this time with **exit code 139 (SIGSEGV)** -- a real,
+  hard native segmentation fault in the training process itself, not a
+  catchable Python exception. `faulthandler` was active but did not
+  print anything to any worker's diagnostic log before the crash
+  (consistent with how SIGSEGV handling can itself be unreliable once
+  memory is already corrupted -- its absence here is not strong
+  evidence either way).
+- **Reset counts at time of death, for all 4 train workers:** 34, 31,
+  28, 35 (`grep -c "_build succeeded"` on each `_worker_diag_N.log`).
+  **This is far below the ~90-103 range from the original confirmed-leak
+  incident** -- training reached total_timesteps=135,296 before dying,
+  only ~39,936 steps into this segment.
+- **The eval worker (the `DummyVecEnv` holdout-object evaluator, which
+  runs IN THE MAIN TRAINING PROCESS, not a separate `SubprocVecEnv`
+  subprocess) was stuck exactly at `"lock acquired, compiling model"`
+  with zero further log output** -- its diagnostic log for this fresh
+  segment shows 0 completed resets, meaning its very first reset
+  attempt in this process was the one in progress when the whole
+  process segfaulted. **This is the same exact symptom (stuck mid-call
+  inside the locked `MjModel.from_xml_string()`, no further output) as
+  the confounded crash in the entry above** -- but this time on the
+  eval worker specifically, with no concurrent CUDA-touching process to
+  blame, and at a much lower reset count.
+- **This changes the working hypothesis from the "Root-cause
+  investigation" entry.** That entry characterized the failure as a
+  cumulative leak that fails reliably after ~90-100 compiles in the
+  same process. Two more data points now exist, both failing at far
+  lower counts (14 and 28-35) with different symptoms (a silent
+  stuck-mid-call hang both times, vs. the original's clean, logged
+  `ValueError` after ~91-103 calls). **The more accurate characterization
+  now is: `MjModel.from_xml_string()`, even serialized behind
+  `build_lock`, has some non-negligible per-call failure probability
+  that is NOT simply a function of how many times it's been called
+  in-process -- the ~90-103 number from the first incident looks like
+  where the dice happened to land that particular run, not a reliable
+  safe threshold.** This also means staying under some fixed reset
+  count per segment is NOT a guaranteed mitigation for this failure
+  mode, even though it's still probably true that failure probability
+  increases somehow with call count (not yet disproven, just no longer
+  assumed as the sole or dominant factor).
+- **What this does NOT change:** the practical workaround (segmenting
+  training across fresh processes, resuming from the last good
+  checkpoint) still works AS A RECOVERY MECHANISM regardless of why a
+  given process dies, since each segment independently checkpoints
+  progress. It just means segment length is a risk-reduction knob, not
+  a guarantee, and this failure mode can and does recur at a real,
+  non-trivial rate even in short, otherwise-healthy segments.
+- **Genuinely good news buried in this crash:** `CheckpointCallback`'s
+  periodic save captured `Data/rl_logs_production/ppo_slip_ckpt_135360_steps.zip`
+  -- confirmed intact and loadable (`PPO.load(...)` ->
+  `num_timesteps=135360`) -- meaning this segment's progress was
+  effectively NOT lost despite the crash, even though the explicit
+  `model.save(args.save_path)` call at the end of `main()` never ran
+  (that only fires on clean completion). `Data/ppo_slip_policy_latest.zip`
+  itself is still only at 95,360 (the last clean segment boundary) and
+  is now stale -- the 135,360 checkpoint is the one to actually resume
+  from next, once a decision is made on how to proceed.
+- **Stopping here to report rather than retrying a third time on the
+  same segment, per standing instructions on unexpected failures.**
+  Two different crash types on the same target in a row (a possibly-
+  confounded `EOFError`/`BrokenPipeError`, then an unconfounded SIGSEGV)
+  is exactly the kind of result that calls for a decision, not another
+  blind retry -- open questions worth a real decision before continuing:
+  whether to keep using `n-envs=4`, whether to disable/space out the
+  eval callback given it's now implicated twice, and whether segment
+  length should change given it no longer looks like a reliable safety
+  margin against this specific failure mode.
+
+## EvalCallback removed; three clean segments, then one more original-pattern leak data point
+
+- **Date:** 2026-10-30
+- **Decision implemented:** `EvalCallback`/`eval_env` removed entirely
+  from `train_rl_policy.py` (it was only ever for progress monitoring;
+  real evaluation now happens post-training via `evaluate_rl_policy.py`'s
+  full 45-trial benchmark). `CheckpointCallback` kept as the sole
+  callback. Segments resized to ~40k steps, resuming from the intact
+  `ppo_slip_ckpt_135360_steps.zip` (not the stale 95,360 one).
+- **Result: three consecutive clean segments** -- 135,360 -> 175,296 ->
+  215,232 -> 255,168, all completing with exit code 0, zero crashes.
+  `ep_rew_mean` over this stretch: 411 (at 175k) -> 398 (at 208k) -> 363
+  (at 247k) -- noisy but not collapsing.
+- **Segment 4 (toward the final 300,000) failed** -- but this one is a
+  clean, separate, confirmatory data point for the ORIGINAL leak theory,
+  not a new eval-related incident (exactly the distinction the decision
+  above was meant to let us draw). Worker 2 (a `SubprocVecEnv` train
+  worker) failed with the identical signature as the very first
+  confirmed incident: `ValueError: Error: engine error: Could not
+  allocate memory`, logged cleanly across 5 retry attempts, after only
+  **16 successful resets** (workers 0/1/3 were at 20/17/21). This
+  further confirms the revised characterization: the original leak-type
+  failure is real and still occurring, at yet another low reset count
+  (16, vs. 91/103 originally) -- reinforcing that it's a per-call
+  failure probability, not a fixed call-count threshold, independent of
+  the separate eval-related SIGSEGV issue (which should no longer occur
+  at all now that EvalCallback is gone).
+- **No progress lost worth noting:** `ppo_slip_policy_latest.zip`
+  remains intact at 255,168 (confirmed via `PPO.load`) -- segment 4
+  only ran a few thousand steps past that before dying, and no
+  intermediate `CheckpointCallback` save fired in between (each
+  ~40k-step segment's fresh callback instance mostly doesn't accumulate
+  enough internal step-calls to cross its own save_freq threshold
+  within such a short segment -- only the explicit final `model.save()`
+  on clean completion reliably fires at this segment length). Retrying
+  the final ~44,832 steps from 255,168.
+
+## Full 300k-step RL training run -- COMPLETE
+
+- **Date:** 2026-10-30/31 (overnight)
+- **Result:** the retried final segment completed cleanly -- exit code
+  0, `Saved final policy to ../../Data/ppo_slip_policy_latest.zip
+  (300224 total steps)`, independently re-verified via `PPO.load()`
+  showing `num_timesteps=300224`. The full run is done, start to finish:
+  0 -> 80,000 (first attempt, crashed at n-envs=6 then recovered at
+  n-envs=4) -> 95,360 (verified resume) -> 135,360 (checkpoint-recovered
+  after a confounded crash, then a genuine SIGSEGV) -> 175,296 -> 215,232
+  -> 255,168 -> 300,224, across 8 separate process launches, surviving 4
+  distinct failure incidents via checkpoint-resume each time.
+- **`ep_rew_mean` over the final segment:** climbed from the ~370s (at
+  the point of the SIGSEGV investigation) to 414-473 by the end --
+  real, continued improvement through the whole run, not a plateau.
+- **Real closed-loop success-rate evaluation (`evaluate_rl_policy.py`,
+  the actual 45-trial benchmark) against the final checkpoint: running,
+  not yet landed as of this entry.** This is the number that actually
+  matters for the 80% target -- `ep_rew_mean` includes grip-force and
+  effort terms, not just the binary held/slipped outcome, so it is
+  informative about whether training was working but is NOT a stand-in
+  for the real success percentage. See the next entry once it completes.
+
+## Re-prioritization pass, 2026-10-31 -- best current call, not a final verdict
+
+- **Why now, with the RL number still pending:** re-read this entire
+  file end to end per instructions, rather than keep deferring until
+  the eval lands. Explicitly framed as provisional -- refine once the
+  real 45-trial RL number is in.
+- **What's established, pulled together:** the 40.0% hand-tuned ceiling
+  has two confirmed, separate causes -- actuator saturation (21/27
+  failures, DIRECTLY confirmed via per-step ctrl-vs-ctrlrange logging,
+  structurally unfixable by any correction formula) and detection misses
+  (6-10/27, strongly correlated with mesh-kind geometry, and -- per the
+  independent 20,000-trial open-loop corroboration -- a signal-quality
+  problem, not a physical-difficulty one). RL training (which controls
+  grasp FORMATION, the only lever that can address saturation) just
+  completed its full 300k-step run. A cheap, RL-independent fix for the
+  detection-miss group (lower trigger threshold) is running in parallel.
+- **Decision tree for what's highest-value next, by RL outcome:**
+  - **If the real RL success rate lands >=~70-80%:** target is
+    effectively met or close. Highest-value next work shifts to
+    robustness/credibility for the write-up -- multi-seed evaluation
+    (the RL policy, like the TCN, has never been checked for run-to-run
+    variance), and a per-object breakdown of the RL result specifically
+    checking whether it fixed the saturation-group objects (its designed
+    mechanism) and, incidentally, the detection-miss objects too (RL's
+    policy observes `slip_probability` directly and could in principle
+    learn its own implicit, object-adaptive threshold, something
+    `decide_action()`'s single global threshold structurally cannot do).
+  - **If it lands meaningfully above 40% but below ~70%:** the most
+    likely next lever is that 300k steps undertrained a non-trivial
+    continuous-control task -- `ep_rew_mean` was still climbing, not
+    plateaued, when training stopped, which is circumstantial evidence
+    for "more training would likely help further," not proof. Resuming
+    training further (the checkpoint-resume mechanism is now proven
+    reliable across 4 real incidents) is cheap relative to redesigning
+    the reward. Revisiting `GRIP_FORCE_COEF`/`GRIP_FORCE_CAP_MULTIPLE`
+    (currently a documented first-pass guess, never tuned against a
+    real training curve -- one now exists) is the next-cheapest lever
+    after that.
+  - **If it regresses below 40%, or is a near-degenerate policy (e.g.
+    near-zero variance in actions, or always dropping during
+    formation):** that would be a real, concerning finding pointing at
+    a flawed reward or environment design, not a training-duration
+    problem -- would need the kind of reward-shaping-sanity review this
+    session already did once (the `GRIP_FORCE_COEF` magnitude check)
+    applied more broadly, before training further.
+- **What's worth doing regardless of which scenario lands:** the
+  detection-miss lower-threshold test (parallel track, closed-loop-
+  domain, not RL-dependent) -- it's a real, separate, additive
+  opportunity on the baseline hand-tuned policy either way, and cheap
+  enough that there's no reason to gate it on the RL number. Result
+  pending in the next entry.
+- **Not the highest-value use of remaining time, under this target:**
+  further mesh-collision-artifact-vs-genuine-difficulty disentangling
+  (already de-prioritized below both RL and the detection-miss fix by
+  the independent open-loop corroboration, which answered the practical
+  question -- "is it worth trying to fix mesh collision" -- well enough
+  to act on, even without a fully mechanistic confirmation), and the
+  `rl_env.py` per-episode model-rebuild performance question (already
+  investigated and declined as too risky for the likely payoff).
+
+## THE real RL closed-loop number -- 64.4%, with a clean win pattern and one new, concentrated failure mode
+
+- **Date:** 2026-10-31
+- **Method:** `evaluate_rl_policy.py` against `Data/ppo_slip_policy_latest.zip`
+  (num_timesteps=300224, the completed run), deterministic actions,
+  same 45-trial benchmark (15 objects x 3 seeds) as every hand-tuned
+  comparison in this file.
+- **Overall: 29/45 held securely (64.4%).** Up from the hand-tuned
+  policy's 40.0% (18/45) -- a real, large improvement, short of the
+  stated 80% target but not close to a wash.
+- **Split by train/holdout -- a real, if noisy, generalization result:**
+  HOLDOUT objects (cone, cylindrical_prism, plus_cross, sphere -- never
+  trained on) **10/12 (83.3%)**, actually ABOVE the 80% target. TRAIN
+  objects 19/33 (57.6%), lower than holdout. n=12 for holdout is small
+  enough that 83.3% should be treated as encouraging, not conclusive,
+  but it is a genuine out-of-distribution result, not a cherry-pick.
+- **Per-object, compared directly against the hand-tuned policy's own
+  per-object numbers (same benchmark, logged earlier in this file):**
+  ```
+  object              hand-tuned    RL        change
+  cone                0/3           3/3       FIXED
+  square_pyramid      1/3           3/3       FIXED
+  triangular_prism    0/3           3/3       FIXED
+  hexagonal_prism     0/3           2/3       mostly fixed
+  plus_cross          0/3           3/3       FIXED
+  capsule             2/3           3/3       improved
+  cylindrical_prism   0/3           1/3       improved
+  sphere              3/3           3/3       unchanged (already good)
+  rod                 3/3           3/3       unchanged (already good)
+  dumbbell            3/3           3/3       unchanged (already good)
+  ellipsoid           1/3           1/3       unchanged
+  cube                1/3           0/3       WORSE
+  rectangular_prism   0/3           0/3       still bad
+  flat_disk           2/3           0/3       WORSE
+  l_block             2/3           1/3       WORSE
+  ```
+  **All four mesh-kind objects, plus `plus_cross`, went from near-total
+  failure to near-total success.** This is exactly the mechanism the
+  detection-miss investigation predicted: the RL policy observes
+  `slip_probability` directly, every step, and can learn its own
+  implicit object-adaptive response instead of `decide_action()`'s one
+  global 0.3 threshold -- it looks like it learned to trust/react to
+  the (weaker, noisier) signal these objects produce in a way the fixed
+  threshold never could.
+- **A genuinely new, concentrated failure mode: formation-phase drops.**
+  11 of the 16 RL failures (69%) have `dropped_during_formation=True`
+  -- the object falls before the pull phase even begins, something
+  structurally impossible under the hand-tuned policy's fixed scripted
+  squeeze (it never drops during approach by construction). Only 5 of
+  16 failures are actual pull-phase slips (`cylindrical_prism` seed=0,
+  `ellipsoid` seed=0/2, `flat_disk` seed=0, `hexagonal_prism` seed=2).
+  **The formation-drop failures concentrate almost entirely on 4
+  objects: `cube` (3/3 drops), `rectangular_prism` (3/3 drops),
+  `flat_disk` (2/3 drops), `l_block` (2/3 drops)** -- exactly the 4
+  objects that got WORSE or stayed bad relative to the hand-tuned
+  baseline. Geometrically, these are flat-faced boxes/a flat disk/an
+  asymmetric compound shape -- notably NOT sharing the mesh-kind
+  property that explained the earlier detection-miss pattern; this
+  looks like a different mechanism entirely (grasp-formation strategy
+  that doesn't generalize to flat/boxy geometry), not a continuation of
+  either previously-characterized failure mode.
+- **What this means for next steps (updates the decision tree in the
+  re-prioritization entry above -- this lands in the "40-70%" bucket):**
+  the saturation and detection-miss failure modes both look
+  substantially addressed by RL, as designed. The dominant remaining
+  problem is new and different: a formation-phase grasping strategy
+  that works well for curved/pointed/thin objects but drops flat-faced
+  or boxy ones outright, concentrated on a small, identifiable set of
+  objects rather than being spread evenly. This is now the single
+  highest-value next target -- more total training steps is a weaker
+  bet than before, since this doesn't look like an undertrained-in-
+  general problem (most objects are already near-ceiling); it looks
+  like a specific gap in what the policy learned to do with a specific
+  geometry class.
+
+## Formation-drop mechanism found -- the policy never closes the middle finger, at all, on any object
+
+- **Date:** 2026-10-31
+- **Method:** `diagnostic_formation_drop.py`, new -- runs the trained
+  policy (deterministic) on the 4 implicated objects and logs
+  `self.fraction` (per-finger ctrlrange-closed fraction, 5 values) and
+  per-finger touch directly from `SlipGraspEnv`'s own public state after
+  every step, sampled through the formation phase.
+- **Result: the middle finger's fraction (actuator index 2 --
+  `right_m-mcp/pip`) is EXACTLY 0.00 at every single sampled step, in
+  every single trace, for all 12 trials across `cube`,
+  `rectangular_prism`, `flat_disk`, `l_block`** -- both the ones that
+  dropped and the two that didn't (`flat_disk` seed=0, `l_block`
+  seed=1). The policy never attempts to close that finger at all on
+  these objects.
+- **Checked immediately whether this is specific to these 4 objects --
+  it is NOT.** Ran the same instrumented trace on 4 objects that hold
+  securely every time (`sphere`, `cone`, `capsule`, `dumbbell`, seed=0
+  each): **identical result, finger index 2 at exactly 0.00 in every
+  case.** This is not a failure specific to flat/boxy geometry -- **the
+  trained policy has learned a universal, object-independent 4-finger
+  grasp strategy that simply never uses the middle finger at all.** It
+  works for curved/pointed/thin objects (4 fingers is apparently enough
+  support there) and fails specifically where 4-finger support isn't
+  enough -- flat/boxy/asymmetric shapes that need the 5th contact point
+  to avoid tipping or falling.
+- **A plausible, specific explanation rooted in the existing reward
+  design (not a new mechanism -- the same `GRIP_FORCE_COEF`/
+  `CONTACT_COEF` terms already in `rl_env.py`):** `_grip_force_sum()`
+  sums normal force across ALL 5 fingertips and the reward term
+  saturates at `GRIP_FORCE_CAP_MULTIPLE=2.0`x the object's weight --
+  once 4 fingers alone clear that cap (plausible for most objects,
+  given the touch values logged above regularly show 2-3 fingers
+  individually contributing 10-40+ units), there is ZERO additional
+  grip-force reward for engaging a 5th finger. `CONTACT_COEF *
+  contact_frac` (fraction of fingers touching) DOES still reward going
+  from 4/5 to 5/5 (a real, if modest, +0.2/step), but apparently not
+  enough to overcome whatever made 5-finger contact less reliable/more
+  effort-costly to discover during training (`EFFORT_COEF` penalizes
+  the extra action magnitude; a finger that's rarely useful could stay
+  a worse local optimum if the exploration never found a configuration
+  where using it paid off clearly). This is a plausible, not fully
+  proven, account of WHY the current reward balance allowed this --
+  consistent with the reward terms as designed, not a new unexplained
+  mechanism.
+- **Concrete, specific fix this points to (not yet implemented --
+  reward-shaping change + a full retrain is a substantial next step,
+  flagged for a decision rather than done unilaterally):** strengthen
+  the incentive to use ALL 5 fingers specifically, rather than
+  rewarding only the aggregate contact fraction/force. Two concrete
+  options: (a) raise `CONTACT_COEF` relative to `GRIP_FORCE_COEF`/
+  `EFFORT_COEF` so 5/5 contact is worth meaningfully more than 4/5, or
+  (b) add a direct per-finger penalty for any finger whose fraction
+  stays near 0 for an extended stretch during formation (today's reward
+  only ever sees the AGGREGATE `contact_frac`/summed grip force, never
+  "finger N specifically has done nothing") -- (b) is more targeted at
+  the actual mechanism found here and less likely to have side effects
+  on objects that are already working well with 4 fingers.
+- **This is a cleanly explained mechanism, not an inconclusive one** --
+  unlike the earlier cube/seed=0 MuJoCo-reproducibility anomaly, this
+  didn't require stopping short. The remaining open question is
+  specifically whether (a) or (b) above (or something else) is the
+  right fix, and whether the time cost of a reward change + full
+  retrain is worth it at this point in the project, not whether the
+  mechanism itself is understood.
+
+## Lower trigger threshold for the hand-tuned policy -- tested, makes things WORSE, does not rescue detection misses
+
+- **Date:** 2026-10-31
+- **Setup:** `diagnostic_lower_threshold.py`, same 45-trial benchmark,
+  hand-tuned `decide_action()` (Model A, NOT the RL policy -- this
+  tests whether the detection-miss group is fixable cheaply on the
+  baseline control path specifically), sweeping the trigger threshold
+  down from the current 0.3 to 0.2 and 0.15.
+- **Result: does not help the detection-miss group, and actively hurts
+  everything else.**
+  ```
+  BASELINE (threshold=0.3): 18/45 (40.0%)  -- detection-miss objects: 3/15 held
+  threshold=0.2:            16/45 (35.6%)  -- detection-miss objects: 3/15 held
+  threshold=0.15:           14/45 (31.1%)  -- detection-miss objects: 2/15 held
+  ```
+  The detection-miss-prone objects (the mesh-kind-heavy group) stayed
+  flat at 3/15 (threshold=0.2) or got slightly worse (2/15 at
+  threshold=0.15) -- lowering the gate does NOT rescue them. Worse,
+  overall performance regressed monotonically as the threshold dropped
+  (40.0% -> 35.6% -> 31.1%), and the regression is concentrated in the
+  "everything else" group (15/30 implied at baseline -> 13/30 -> 12/30)
+  -- a more sensitive gate starts firing on noise in trials that didn't
+  need correction, without fixing the trials that genuinely have weak
+  signal.
+- **Why this is informative, not just a negative result:** it confirms
+  the detection-miss problem is NOT a simple miscalibrated-threshold
+  issue on the hand-tuned control path -- the underlying `max_slip_
+  probability` signal for these objects is genuinely weak/noisy (per
+  the mesh-collision-driven signal-quality hypothesis above), not just
+  sitting slightly below an overly conservative cutoff. A single global
+  threshold, however tuned, cannot fix this on the hand-tuned path --
+  which sharpens, in direct contrast, why the RL result above is
+  significant: RL's policy has access to the SAME underlying
+  `slip_probability` signal but learned something qualitatively
+  different with it (an object-adaptive response, not a better fixed
+  cutoff), and that is specifically what flipped the mesh objects from
+  near-total failure to near-total success. The hand-tuned path has no
+  cheap fix remaining for this failure mode; RL already solved it.
+
+## Reward fix implemented: MIN_FINGER_FRACTION_COEF, targeting the never-closes-middle-finger finding
+
+- **Date:** 2026-10-31
+- **Change:** added `MIN_FINGER_FRACTION_COEF = 0.5` to `rl_env.py`'s
+  formation-phase (phase 0/1) reward -- `min(self.fraction)` (the
+  WORST-engaged finger's own commanded ctrlrange fraction, not an
+  average), added alongside the existing `CONTACT_COEF`/`GRIP_FORCE_COEF`
+  terms rather than replacing them. Full reasoning (why a maximin term
+  specifically, why it targets commanded fraction rather than measured
+  touch, why reweighting the existing aggregate terms was considered and
+  rejected as insufficiently targeted) is in `rl_env.py`'s module
+  docstring, same documentation discipline as the `GRIP_FORCE_COEF`
+  entry before it.
+- **Magnitude checked empirically before trusting it** (same practice as
+  last time, after `GRIP_FORCE_COEF`'s first pass turned out 5-40x too
+  strong): `smoke_test_rl_env.py` under random actions, same 3 seeds as
+  always -- episode totals went from 12.66/185.33/22.70 (pre-fix) to
+  14.80/203.73/31.90 (post-fix) -- a modest, proportionate 15-40%
+  increase, not a dominant jump. Max per-substep contribution
+  (0.5 x 1.0 = 0.5) sits between `GRIP_FORCE_COEF`'s (0.3) and
+  `CONTACT_COEF`'s (1.0) -- a reasonable first pass, not yet tuned
+  against a real training curve with this term active.
+- **Next: a cheap, bounded sanity check** -- resume training from the
+  completed 300,224-step checkpoint with the new reward active, for a
+  short (~20-30 min) segment, checking specifically whether the middle
+  finger's fraction starts moving at all off its locked 0.00. See the
+  next entry for the result.
+
+## Sanity-check result: middle finger did NOT move -- stopping before a full retrain, per plan
+
+- **Date:** 2026-10-31
+- **What happened getting here:** the infrastructure fought back hard --
+  5 separate launch attempts before getting usable data. Attempts 1-2
+  crashed on the literal FIRST reset of every worker (zero rollouts
+  completed), a more severe pattern than anything seen before. Checked
+  for orphaned processes per a direct request: found one genuine orphan
+  (PID 19188, a `multiprocessing-fork` child whose parent process, PID
+  11060, no longer existed -- alive since 2026-10-30 5:59 PM, ~16 hours).
+  Could not terminate it myself (`Stop-Process` denied by the sandbox's
+  auto-mode classifier -- flagged to the user to clean up manually, not
+  worked around). Also found free memory had dropped from 16.3GB to
+  7.3GB, consistent with each of the 4 fresh worker processes using
+  ~2.17GB (the raw `Get-Process` reading showed corrupted-looking
+  negative `WorkingSet` values -- an Int32 display overflow once
+  corrected). Attempts 3-5 crashed later, in the already-characterized
+  `ValueError: Could not allocate memory` pattern (12-21 resets each) --
+  consistent with the known issue, not a new one. Attempt 5 (after
+  lowering `CheckpointCallback`'s save frequency so a short segment
+  would actually produce a usable checkpoint -- see the
+  `--checkpoint-freq` rename entry implicit in this one) finally
+  produced real checkpoints at 305,224 / 310,224 / 315,224 steps before
+  dying at 317,632.
+- **The actual result, checked against `ppo_slip_ckpt_315224_steps.zip`
+  (15,000 steps of training with `MIN_FINGER_FRACTION_COEF` active):**
+  `diagnostic_formation_drop.py` on `cube`, `rectangular_prism`,
+  `sphere`, and `cone` (two that drop, two that don't) all show the
+  identical result as before the fix -- **the middle finger's fraction
+  is still exactly 0.00 in every case, unchanged.** No movement at all,
+  not even a small nonzero drift.
+- **Per the agreed branch logic, stopping here -- NOT proceeding to a
+  full fresh retrain.** Honest reasoning about why this result doesn't
+  necessarily mean the fix is wrong, stated for whoever picks this up
+  next: this was a CONTINUATION from an already-converged, 300k-step-
+  trained checkpoint with a very deeply entrenched 4-finger strategy --
+  PPO's clipped update (`clip_range=0.2`) limits how fast any policy can
+  shift per update, and 15,000 steps (~15 policy updates) against 300k
+  steps of prior reinforcement may simply not be enough leverage to
+  dislodge an already-stable local optimum, even if the new reward term
+  would have prevented that optimum from forming in a FRESH run from
+  scratch (which is exactly why the plan called for a from-scratch
+  retrain as the real test, not a continuation -- this sanity check was
+  specifically a cheaper, faster proxy for that, and it's an honestly
+  ambiguous proxy, not a clean disproof). No evidence either way on
+  whether a fresh run would behave differently -- that question is
+  explicitly NOT answered by this result, only deferred.
+- **Not done:** the full fresh retrain (correctly withheld, per the
+  branch instructions). No conclusion drawn about whether
+  `MIN_FINGER_FRACTION_COEF` is the wrong fix -- only that continuing
+  from the biased checkpoint doesn't cheaply prove it's the right one
+  either. A decision is needed on whether to spend the time on a full
+  fresh retrain anyway (the only way to actually test this), try a
+  stronger coefficient first as an even cheaper intermediate check, or
+  deprioritize this given how much infrastructure friction today has
+  cost.
+
+## Escalated MIN_FINGER_FRACTION_COEF 0.5 -> 3.0, user-authorized, proceeding straight to a full retrain regardless of this check's outcome
+
+- **Date:** 2026-10-31
+- **Decision:** user authorized, in advance, a 3-step plan with no need
+  to check back in between: escalate the coefficient meaningfully,
+  cheap-check whether the finger moves, then proceed to a full fresh
+  retrain EITHER WAY (not gated on the cheap check's result, since a
+  continuation was already shown to be a weak/ambiguous test).
+- **Escalation: 0.5 -> 3.0** (6x) -- makes this term's max per-substep
+  contribution (3.0) clearly dominant over `CONTACT_COEF`'s (1.0, 3x
+  smaller) and `GRIP_FORCE_COEF`'s (0.3, 10x smaller), a deliberate,
+  aggressive jump rather than a small nudge, on the theory that if a
+  gentle version can't move an entrenched habit, the real test is
+  whether a strong one can. Magnitude checked empirically first (same
+  practice as always): `smoke_test_rl_env.py`, same 3 seeds, went from
+  25.53/295.68/77.94 (at 3.0) vs. 14.80/203.73/31.90 (at 0.5) -- a
+  roughly proportionate 1.7-2.4x increase, no runaway blowup, no crash.
+  Full reasoning in `rl_env.py`'s module docstring.
+- **Next: same cheap continuation check as before** (short, fine-grained
+  checkpointing given today's infra friction), then straight to the
+  full fresh retrain regardless of what it shows -- see the next entries.
+
+## Strong-coefficient check result -- still 0.00, but a weaker sample (5k steps, not 15k) -- proceeding to full retrain per pre-authorized plan
+
+- **Date:** 2026-10-31
+- **Result:** crashed again (same known `EOFError`/leak pattern), but a
+  checkpoint was captured at 305,224 steps -- only 5,000 steps of
+  training with `MIN_FINGER_FRACTION_COEF=3.0` active (vs. 15,000 steps
+  for the 0.5 check, since this run crashed earlier). Checked the same
+  4 objects (`cube`, `rectangular_prism`, `sphere`, `cone`): **middle
+  finger fraction still exactly 0.00, no movement.**
+- **Honestly weaker evidence than the 0.5 check, not stronger** -- 5,000
+  steps is only ~5 policy updates, a smaller sample than the already-
+  ambiguous 15,000-step/~15-update check. This result should NOT be
+  read as "a 6x stronger coefficient also failed, so the fix doesn't
+  work" -- it's barely more informative than not checking at all, given
+  how little training actually happened before the crash.
+- **Not iterating further on cheap checks, per the pre-authorized plan.**
+  Proceeding straight to the full fresh retrain (300k steps, fresh PPO,
+  `MIN_FINGER_FRACTION_COEF=3.0`, segmented/checkpoint-resume) now,
+  regardless of this inconclusive result -- see the next entry.
+
+## Full fresh retrain complete -- the fix worked exactly as designed, and REGRESSED overall performance (64.4% -> 44.4%)
+
+- **Date:** 2026-10-31 (ran unattended overnight)
+- **Training completed cleanly:** the self-healing orchestrator
+  (`Data/_run_fresh_retrain.sh`) needed 8 process attempts total -- 6
+  crashes in the first 45,000 steps (the known intermittent leak,
+  including two immediate zero-progress failures), then one single
+  continuous run from 45,000 all the way to completion at 301,000 steps
+  with zero further crashes. Final policy: `Data/ppo_slip_policy_fresh.zip`.
+- **Mechanism check: the fix worked exactly as intended.**
+  `diagnostic_formation_drop.py` against the final policy on the 4
+  previously-idle-middle-finger objects (`cube`, `rectangular_prism`,
+  `flat_disk`, `l_block`) now shows **all 5 fingers reaching fraction
+  ~1.00 in every single trace** (spread 0.00-0.13, vs. the fixed
+  0.00-for-finger-2/spread-1.00 pattern before) -- the "never closes
+  the middle finger" problem is completely gone, confirmed directly,
+  not inferred.
+- **But the real 45-trial evaluation shows a clear regression: 20/45
+  (44.4%), down from the pre-fix fresh run's 29/45 (64.4%).** TRAIN
+  objects 13/33 (39.4%, down from 57.6%), HOLDOUT 7/12 (58.3%, down
+  from 83.3%). Full per-object comparison:
+  ```
+  object              pre-fix (64.4%)   post-fix (44.4%)   change
+  cube                0/3               0/3                no change (target object, STILL fails)
+  rectangular_prism    0/3               0/3                no change (target object, STILL fails)
+  l_block              1/3               1/3                no change (target object, still mixed)
+  flat_disk            0/3               0/3                no change (was formation-drop, now pull-phase slip -- same count, different mechanism)
+  capsule              3/3               0/3                REGRESSED -- was perfect, now always slips
+  rod                  3/3               1/3                REGRESSED
+  plus_cross           3/3               1/3                REGRESSED
+  triangular_prism     3/3               0/3                REGRESSED -- was perfect, now always drops
+  sphere               3/3               2/3                slightly worse
+  ellipsoid            1/3               3/3                improved
+  cone/dumbbell/square_pyramid/hexagonal_prism/cylindrical_prism  unchanged (already good or already mixed)
+  ```
+- **The honest takeaway: forcing universal 5-finger full closure is not
+  a free win.** The 4 objects the fix specifically targeted did NOT
+  improve at all -- `cube` and `rectangular_prism` still drop during
+  formation every single time, now via a DIFFERENT mechanism (full
+  5-finger engagement, very fast, still ends in a drop -- see the
+  `diagnostic_formation_drop.py` trace lengths, still as short as
+  24-36 macro-steps, barely changed from before the fix) -- meaning
+  these two objects have a second, independent problem that idle-
+  finger-avoidance was never going to fix on its own (most likely
+  something about the SPEED/coordination of closing, or the approach
+  trajectory itself, not which fingers engage). Meanwhile, forcing
+  full closure on every finger for every object cost real performance
+  on objects (`capsule`, `rod`, `plus_cross`, `triangular_prism`) that
+  were previously held perfectly well by a more selective grip --
+  likely because always slamming to 1.0 fraction on all 5 fingers
+  isn't actually the best grip for every shape, and the previous
+  policy's "skip finger 2" strategy may have been a genuinely adapted,
+  not just lazy, solution for several of these.
+- **Net result: this specific fix should NOT be kept over the pre-fix
+  policy.** 64.4% (`Data/ppo_slip_policy_latest.zip`, the pre-fix fresh
+  run) remains the best verified closed-loop result from this entire
+  session. This is a real, reportable negative result -- the
+  mechanism-level diagnosis (never closes the middle finger) was
+  correct and the fix for that exact mechanism worked, but the
+  mechanism wasn't the (or wasn't the only) actual cause of the
+  cube/rectangular_prism failures, and fixing it indiscriminately
+  everywhere else had a net-negative side effect.
+- **Not done, pending a decision:** no further coefficient tuning
+  attempted. A decision is needed on whether to: (a) revert to the
+  64.4% pre-fix policy as the project's reported result, (b) try a more
+  moderate/targeted version of the fix (e.g. a smaller coefficient, or
+  only rewarding minimum-finger-engagement for the 4 specific objects
+  rather than universally -- though object-conditional reward shaping
+  is a bigger design change than anything tried today), or (c)
+  investigate cube/rectangular_prism's actual drop mechanism directly
+  (the diagnostic infrastructure already exists) before changing the
+  reward again, since the fix-worked-but-didn't-help result suggests
+  the real cause for those two specific objects is still unidentified.
+
+> **CURRENT REFERENCE RESULT, unambiguously (2026-10-31): 64.4%
+> (29/45), policy checkpoint `Data/ppo_slip_policy_latest.zip`
+> (verified intact, `num_timesteps=300224`, untouched by every attempt
+> below this point).** `Data/ppo_slip_policy_fresh.zip` (44.4%, the
+> `MIN_FINGER_FRACTION_COEF=3.0` regression above) is kept on disk for
+> comparison only -- it is NOT the result to cite or build on going
+> forward unless a future entry explicitly supersedes this note.

@@ -1,11 +1,20 @@
 # Generated simulation data and exports -- large, reproducible from the
-# generator scripts + seeds, doesn't belong in git.
-Data/
+# generator scripts + seeds, doesn't belong in git. (Data/* instead of
+# Data/ so the exception below can still reach inside the directory --
+# git won't apply a file-level negation to a fully-excluded directory.)
+Data/*
 
 # RL training logs/checkpoints (tensorboard events, PPO checkpoints) and
 # scratch training logs -- reproducible from a training run, not source.
 Synthetic data creation/Simulation/rl_logs*/
 *.log
+
+# Exception: the actual policy checkpoint backing the cited 64.4% closed-loop
+# result (small, 316KB) -- unlike routine training logs, this specific run
+# took many hours and several non-deterministic recoveries to produce, so
+# it isn't trivially reproducible on demand the way the comment above
+# otherwise assumes. Worth keeping as the real artifact behind the number.
+!Data/ppo_slip_policy_latest.zip
 
 # Python
 __pycache__/

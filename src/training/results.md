@@ -1727,3 +1727,84 @@ writeup of why) is worth the remaining time before the deadline.
 > `MIN_FINGER_FRACTION_COEF=3.0` regression above) is kept on disk for
 > comparison only -- it is NOT the result to cite or build on going
 > forward unless a future entry explicitly supersedes this note.
+
+## Formation-drop mechanism for cube/rectangular_prism/flat_disk/l_block -- two distinct sub-patterns found, not one clean mechanism
+
+- **Date:** 2026-11-01
+- **Method:** `diagnostic_formation_drop_detailed.py`, new -- logs EVERY
+  step (not sampled) through formation against the VERIFIED-GOOD 64.4%
+  policy (`Data/ppo_slip_policy_latest.zip`, not the regressed one),
+  tracking per-finger first-contact step, object speed, and cumulative
+  "fall" every step. Compared the 4 implicated objects directly against
+  `sphere`/`cone` (successful, same policy) run through the identical
+  logging.
+- **Ruled out directly: this is NOT a "too late no matter what"
+  problem.** In every trace, including all 4 failures, `obj_speed` and
+  `fall` are exactly 0 for the first ~50-65 steps -- the object is
+  completely static before any finger makes contact. Whatever goes
+  wrong happens AFTER contact begins, not before any correction-
+  relevant signal could possibly have existed.
+- **Ruled out directly: raw closing SPEED (the commanded fraction's own
+  ramp-up rate) is not the differentiator.** The fraction trajectory
+  (0.08 at step 5 -> 1.0 by step 65-80) is essentially identical across
+  every object tested, success or failure -- the policy doesn't close
+  perceptibly faster or slower on the objects that fail.
+- **A real, measured difference: which/how-many fingers engage, and
+  how tightly they arrive together -- but it splits into two different
+  sub-patterns, not one:**
+  - **Successful grasps (`sphere`, `cone`) use only 3 fingers** (thumb=0,
+    index=1, ring=3) -- the middle finger (2) never touches (expected,
+    per the earlier finding) AND the pinky (4) never touches either --
+    arriving within a tight **10-15 step window** of each other.
+  - **`cube` (both seeds) and `flat_disk`: the SAME 3 fingers contact
+    early, but the pinky (finger 4) ALSO eventually makes contact, 70-95
+    steps LATE** (step 130-150, vs. 55-80 for the other three). After
+    that, the grip looks superficially stable (object speed settles to
+    ~0.01-0.02, similar magnitude to the successful cases' steady
+    state) but exhibits a **slow, steady downward sag** that never
+    fully arrests -- `fall` creeps from ~0.03 past the 0.05 threshold
+    over 400-500 further steps, including measurable drift BEFORE
+    `ramp_steps`/gravity-reenable even happens (so it isn't just
+    gravity winning once enabled -- something about the 4-finger
+    configuration itself has a small net-downward bias).
+  - **`rectangular_prism` (both seeds) and `l_block`: a DIFFERENT
+    pattern -- only 3 fingers ever contact (same count as the
+    successful cases), but a sudden, violent velocity spike
+    (object speed reaching 0.4-1.0, roughly 10-50x the successful
+    cases' steady-state speed) appears partway through closing, often
+    coinciding with contact partially or fully DROPPING OUT across
+    multiple fingers simultaneously (e.g. `l_block` seed=0 at step 85:
+    touch goes from 3 fingers reading 10-13 units down to essentially
+    zero on all of them in a single logged step) -- consistent with an
+    unstable intermediate grip configuration tipping the object before
+    full closure, not a slow sag. Once this starts, the object crosses
+    the full 5cm drop threshold within 9-25 further steps -- genuinely
+    "too late" from THAT point on, even though it wasn't too late
+    before the instability triggered.
+- **Honest synthesis, not a single clean mechanism:** both sub-patterns
+  plausibly trace back to the same root cause (a grip strategy that
+  converges 3 fingers in a configuration that works geometrically for
+  curved/pointed objects, but doesn't provide adequate support for
+  flat-faced/boxy/elongated ones) -- but the FAILURE MODE differs by
+  object: `cube`/`flat_disk` get a 4th (late, unhelpful) finger and
+  sag slowly; `rectangular_prism`/`l_block` keep the same 3-finger
+  count as successful grasps but that configuration is specifically
+  unstable for their geometry and fails fast. This is a genuinely
+  harder, multi-factor finding than the saturation diagnosis was --
+  there is no single lever (like "actuators are pinned") visible here.
+- **Not directly checked, flagged honestly rather than skipped:**
+  contact LOCATION on the object (edges/corners vs. flat-face-center)
+  was not instrumented in this pass (would need `mjData.contact`
+  position inspection, same technique as the earlier cone-vs-sphere
+  mesh-collision diagnostic, not yet pointed at these 4 objects) --
+  plausible given the flat/angular geometry common to all 4 failing
+  objects, but not directly measured here, so not claimed as confirmed.
+- **What this suggests for a fix, without guessing at one yet:** the
+  `rectangular_prism`/`l_block` pattern (sudden multi-finger contact
+  loss) looks like it could be addressed by a stability-focused reward
+  term (e.g. penalizing sudden touch-count drops during formation,
+  distinct from the already-tried min-finger-engagement approach which
+  regressed performance) -- but per instructions, no reward change is
+  being made on this finding alone. The `cube`/`flat_disk` slow-sag
+  pattern looks different again and may need its own explanation before
+  any fix is attempted there specifically.

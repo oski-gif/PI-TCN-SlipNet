@@ -12,7 +12,7 @@ import numpy as np
 import closed_loop_sim as cls
 
 
-def original_policy(slip_probability, driven_targets):
+def original_policy(slip_probability, driven_targets, **kwargs):
     if slip_probability <= 0.5:
         return {}
     actions = {}

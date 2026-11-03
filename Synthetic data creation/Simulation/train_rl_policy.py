@@ -11,12 +11,12 @@ detection model's own train/val/test split.
 
 VecNormalize (2026-11-01, results.md "Why are we plateaued at 64.4%"):
 wraps the training SubprocVecEnv to normalize observations and rewards
-using running mean/variance (SB3's own documented default for continuous
-control, which this project had never used -- confirmed absent via grep
-before adding it). Reward terms here span a >1000x raw magnitude range
+using running mean/variance (a standard SB3 wrapper, opt-in, which PPO does
+not apply on its own and this project had never used -- confirmed absent
+via grep before adding it). Reward terms here span a >1000x raw magnitude range
 (EFFORT_COEF=0.02 to ALPHA_DISPLACEMENT=50.0) with nothing previously
-absorbing that scale; this is additive (restores a documented SB3
-default) rather than a change to reward/observation CONTENT, unlike the
+absorbing that scale; this changes reward/observation scale
+rather than reward/observation CONTENT, unlike the
 three experiments that already regressed performance this week. The
 running stats are saved alongside every CheckpointCallback save
 (save_vecnormalize=True) and reloaded on --resume-from via find_sidecar()
@@ -344,8 +344,7 @@ def main():
         if args.use_vecnormalize:
             # norm_obs + norm_reward both on, gamma=0.99 matching PPO's own
             # (left at SB3's default, confirmed via audit never overridden) --
-            # restores SB3's own documented default behavior for continuous
-            # control (see module docstring). Opt-in via --use-vecnormalize
+            # see module docstring. Opt-in via --use-vecnormalize
             # (see its help) -- NOT the default, so every other experiment
             # keeps training on plain, unnormalized observations.
             train_env = VecNormalize(raw_train_env, norm_obs=True, norm_reward=True,

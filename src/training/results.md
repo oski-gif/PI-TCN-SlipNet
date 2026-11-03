@@ -2212,6 +2212,8 @@ information needed to decide whether the bugfix + fresh RL training run
 
 ## Why are we plateaued at 64.4%, and why did three different single-change attempts all regress it? Research + audit, not a new fix attempt
 
+> **CORRECTION (2026-11-02):** the minibatch, episode-budget and several literature claims in this entry are wrong or overstated. See "Corrections to tonight's audit" below before citing anything here.
+
 - **Date:** 2026-11-01
 - **Scope note:** this is diagnosis only, per instructions -- nothing
   in this entry was implemented or trained. One candidate fix is
@@ -2617,6 +2619,8 @@ its scale. Not started -- reporting first, per instructions.
 
 ## VecNormalize seed #1 result: 2.2% -- catastrophic, not just "no better." Verdict: VecNormalize is not the fix, stopping here
 
+> **CORRECTION (2026-11-02): the verdict and the explanation below are withdrawn.** 2.2% is one seed, and its eval path has not been checked at runtime. The evidence offered for "reward farming" was false: final `ep_len_mean` 162 is the shortest of any run, not longer than typical (the "~100-130" figure was this run's own early training), and final `ep_rew_mean` 334 is ordinary (seed3 355, partA 360, the 64.4% run 442), not "far higher than any other run". The mechanism was also impossible: formation lasts a fixed 800 physics steps (160 macro-steps), set by the global step, so a policy cannot stay in it longer. Skipping VecNormalize seed #2 was my call and departed from the agreed plan. See "Corrections to tonight's audit" below.
+
 - **Date:** 2026-11-02
 - **Result:** full 300k run completed cleanly (300,032 steps, zero
   crashes this segment, both sidecars saved correctly, auto-detected
@@ -2673,6 +2677,8 @@ its scale. Not started -- reporting first, per instructions.
   locked in).
 
 ## Baseline (hand-tuned Model A) 1,000-trial eval: 58.6% -- meaningfully different from the 45-trial estimate of 40.0%
+
+> **CORRECTION (2026-11-02): this entry is wrong on methodology and cause.** The run was NOT "identical methodology": it used `max_steps=1500`, while the 40.0% run used `max_steps=2500`. The gap is mainly a config difference, not small-sample noise. Do not compare 58.6% with 40.0%. See "Baseline comparability check" below.
 
 - **Date:** 2026-11-02. `batch_closed_loop_trials.py`, identical
   methodology to every prior Model A number (500/300 ramp/settle,
@@ -2750,6 +2756,8 @@ its scale. Not started -- reporting first, per instructions.
 
 ## Seed3 real result: 17.8% -- the 3-seed baseline mean+-std is now locked in, and it's nowhere near 70%
 
+> **CORRECTION (2026-11-02):** "same config" holds for the reward, observations and hyperparameters, but not for the training procedure: the 64.4% run took 8 process launches, seedcheck 2 productive ones, seed3 1. These numbers are also 45 trials each, in deterministic mode only, so the mean and std are provisional until the dev-set re-score below. See "Corrections to tonight's audit".
+
 - **Date:** 2026-11-02. Seed3's 45-trial eval: **8/45 held securely
   (17.8%)** -- TRAIN 8/33 (24.2%), HOLDOUT 0/12 (0.0%).
 - **Three seeds of the exact same config, zero code changes, now in
@@ -2786,3 +2794,151 @@ its scale. Not started -- reporting first, per instructions.
 - **Result: no new correctness bugs found; no code changed.** Checked in `generate_trials.py`: gravcomp spawn/re-enable at the ramp->settle boundary, displacement reference latch at the last settle step, clean-vs-noisy signal use for contact detection and `grasp_force_at_settle`, pull ramp, actuator neutral clamping, pad-friction warnings, manifest/npz field consistency, and balancing (seeded, drops empty buckets). All match their docstrings.
 - **Minor drift (not changed):** `--n-trials` help text says "split evenly across the 15 objects"; this holds only when `n_trials` is divisible by 15 (otherwise the truncated final block gives some objects one extra trial). `diagnostic_stiff_contacts.stiffen_contacts` silently skips a missing fingertip body (it only reports the patched-geom count).
 - The open findings from 2026-11-02 and the 2026-10-31 latent-25ch note remain unresolved and unchanged.
+
+## Baseline comparability check: 40.0% and 58.6% are NOT comparable -- the gap is mainly a max_steps difference, not sampling noise
+
+- **Date:** 2026-11-02. Read-only: no simulation was run. Compared `Data/closed_loop_scenes/batch_results.jsonl` (the stored 18/45) with `Data/baseline_modelA_1000trial_results.jsonl` (the 1,005 trials).
+- **Answer: not comparable.** I wrote "identical methodology" and "too small a sample" without checking. I never passed `--max-steps` to the 1,005-trial run, so it used the batch script's default of 1500. The 40.0% run used 2500 (this file, "Real, properly-timed batch").
+
+| Setting | 45 trials (2026-10-25) | 1,005 trials (2026-11-02) |
+|---|---|---|
+| Checkpoint | `model_a.pt` | same file, unchanged since before the first run |
+| `squeeze_intensity` | 0.95 | 0.95 |
+| `pull_multiple` | 1.5 | 1.5 |
+| ramp / settle / pull ramp | 500 / 300 / 500 | 500 / 300 / 500 |
+| `decide_action()` threshold, `STEP_FRACTION` | 0.3, 0.35 | 0.3, 0.35 (same at every commit since) |
+| **`max_steps` (total, includes ramp + settle)** | **2500** | **1500** |
+| Steps at full pull | 1200 | 200 |
+| Seeds | 0-2 | 0-66 |
+
+- **Per-trial, same 45 (object, seed) pairs: 18/45 at 2500 steps, 24/45 at 1500.** 39 trials have the same outcome. All 6 that differ went from slip to held: `cone`/1, `capsule`/2, `flat_disk`/1, `hexagonal_prism`/0, 1 and 2. None went the other way.
+- **Cause: the horizon, not non-determinism or a code change.** If the runs are deterministic and differ only in length, the 1500-step run is a prefix of the 2500-step run, so its maximums can never exceed the longer run's. There are zero violations across 45 trials on displacement, slip probability and corrections. 14 trials have bitwise-equal `max_displacement`, 10 of them with corrections firing, across separate processes 8 days apart. 14 trials differ by exactly 200 corrections, which at one decision per 5 steps is exactly the 1,000 extra steps.
+- **Code changes:** the `predict_slip()` refactor, the `feats` argument, `step_callback` and the `load_model()` device handling are in `closed_loop_sim.py` between the runs. The bitwise matches show they did not change behaviour for Model A. `batch_closed_loop_trials.py` is unchanged since commit 81b8e90.
+- **Splitting the 18.6-point gap:** 40.0% -> 53.3% (same trials, shorter horizon) is 13.3 points. 53.3% -> 58.6% (45 pairs versus all 1,005) is 5.3 points, about 0.7 SE at n=45 and plausibly sampling. Excluding seeds 0-2, the 1500-step rate is 565/960 (58.9%).
+- **cube/seed=0 anomaly:** not resolved, since it concerned the batch path versus a diagnostic script. But this batch path reproduces across processes, which weakens the "engine-level non-reproducibility" candidate recorded earlier.
+- **Model B has the same problem.** The stored 33.3% run shows the same fingerprint (`cube`/0: 331 corrections then, 131 now), so it also used 2500. The 1,005-trial Model B run in progress uses 1500. It is comparable with A's 58.6%, not with 33.3%. A's 40.0% and B's 33.3% remain comparable with each other.
+- **Neither hand-tuned horizon matches the RL evaluations.** `rl_env.py` counts `max_steps` after settle, so RL's 1500 means 2300 total steps and 1000 at full pull. RL has 1000 steps at full pull, hand-tuned has 1200 (the 40.0%) or 200 (the 58.6%). The 58.6% therefore faces a much easier test than any RL number and must not be set against them. The matching setting is `--max-steps 2300`.
+- **Second asymmetry, not yet measured:** RL `held_securely()` counts a drop during formation as failure. `run_trial()` has no such check and latches its displacement reference at the end of settle, so an object already dropped by then could score as held. The JSONL has no object height, so this can't be checked from stored data. If it occurs, it inflates every hand-tuned number relative to RL.
+- **What can be cited now:** 58.6% (589/1005) only as "hand-tuned Model A, 1500 total steps, no formation-drop check". No 1,005-trial hand-tuned number exists yet at a horizon comparable to RL.
+
+## Corrections to tonight's audit
+
+- **Date:** 2026-11-02. Checked against SB3 2.9.2 source and the training logs.
+- **Minibatching: I was wrong.** SB3's rollout buffer is `n_steps * n_envs` (`buffer_size = self.env.num_envs * self.n_steps`), and the logs step by 1024. With `batch_size=256` that is 4 minibatches per epoch, 40 per PPO iteration. "`batch_size` equals `n_steps`" and "zero real minibatching" were both wrong.
+- **n_steps: the "8x" comparison was misleading.** Samples per update are 1024 versus 2048 for SB3's default at `n_envs=1`, a factor of 2. What is actually short is the per-env rollout: 256 macro-steps, against a 460 macro-step cap on a fully held episode ((800 + 1500) / 5). Final mean episode lengths are 162-351. Any held episode outlasts one rollout, so its +20 `HOLD_BONUS` is reached through value bootstrapping. That is the real case for the n_steps test, and it is untested.
+- **Episode budget: "~89 per object" was wrong.** It used `ep_len_mean` values from a mixed log tail. Summing 1024 / `ep_len_mean` per iteration over complete logs gives 1,669-2,122 episodes per run, about 150-190 per object.
+- **"No seeding anywhere" was too strong.** Each worker's scene stream is seeded with its worker index and restarts at every process launch. Only policy initialisation and action sampling vary freely between runs.
+- **"Exact same config" needs a qualifier.** Reward, observations and hyperparameters match, and the `rl_env.py` diff since 9ddc2fc is only the coefficient and `get_reward_config()`. The procedure does not: 8 launches for the 64.4% run, 2 productive for seedcheck, 1 for seed3, and `EvalCallback` was present for part of the 64.4% run. Three points can't separate this from chance, and it is an uncontrolled difference in the seed comparison.
+- **Literature claims I overstated in the plateau entry:**
+  - "27% to 95% sim-trained closed-loop": the 27% is a real-world deployment figure, so that is not a sim-only range.
+  - The curriculum comparison comes from a secondary write-up, and "BECAUSE it lacked curriculum" was my inference.
+  - "VecNormalize is SB3's default": PPO does not apply it automatically. Its flags default to true only once it is wrapped. "Precisely because raw PPO is fragile" was my wording. The same claim in `train_rl_policy.py`'s docstring and inline comment has been removed.
+  - arXiv 2505.19247 reports better PPO results with larger minibatches and fewer epochs on some tasks. "Relative to n_steps" was my addition.
+- **Omitted from my variance report:** the same search summary of Henderson et al. says TRPO and PPO were the most stable methods, with small confidence bounds. That cuts against treating our spread as typical. We can say seed sensitivity is a documented problem. We cannot say our 46-point range is normal for PPO.
+- **Training logs say something about the 2.2%, not yet tested at runtime.** Final `ep_len_mean` roughly tracks eval success: 351 (64.4%), 218 (24.4%), 216 (17.8%), 202 (35.6%, partial log), 162 (2.2%). Episodes were already short during stochastic training, which weighs against an eval-only bug but does not rule one out. The static read also passes: the sidecar has `norm_obs=True`, shape (115,), about 300k samples and no zero-variance dimensions; `training=False` is set; and `normalize_obs` runs before `predict`.
+- **Open hypothesis, untested:** formation reward can reach about 1,040 over 160 macro-steps, while phase 2 pays at most +20 at the end and -50 x displacement at every macro-step. Holding at 5 mm for 300 macro-steps scores about -55, against about -20 for slipping straight away. Holding may therefore be weakly rewarded. The harness below records reward per phase so this can be measured.
+- **`evaluate_rl_policy.py` uses `deterministic=True`, while training samples with final action std 0.82-0.93.** Every RL success rate this week measures the mean action, not the policy as trained. Item checked next; see the rule below.
+
+## Pre-registered evaluation rules for all remaining RL comparisons (written before any of these results exist)
+
+- **Date:** 2026-11-02.
+- **Dev set:** 15 objects x seeds 1000-1009 = 150 trials, the same for every checkpoint. SE is about 4 points at p=0.4. Going to 300 only reaches 2.8, small next to a between-seed SD of about 20. Used for all choices.
+- **Locked set:** the 15 x 67 structure, seeds 0-66, with seeds 3-66 (960 trials) as the primary figure, because seeds 0-2 have already been used to compare and choose policies. Used only to report finalists, never to choose. The 64.4% checkpoint's run must be labelled "best of 3 seeds, deterministic".
+- **Horizon:** RL `--max-steps 1500`, unchanged. Any hand-tuned comparison with RL uses `--max-steps 2300`.
+- **Eval-path check, 2.2% policy, the original 45 pairs, deterministic, direct versus training-style wrapper:** pass means at least 43/45 trials agree. A failure voids the 2.2% and blocks any further VecNormalize run until explained. Separately, a stochastic wrapper run on train objects should land within 25% of the final training values (`ep_rew_mean` 334, `ep_len_mean` 162). If not, report it.
+- **Deterministic versus stochastic, 64.4%, 35.6% and 17.8% checkpoints on the dev set:** per-trial pairing, with action noise seeded per trial. If `|difference| > 2 * sqrt(b + c) / n` on any checkpoint (b, c = discordant trials), it counts as changing the numbers: stop and report before going further. The eval mode for later comparisons is chosen on the dev set only.
+- **Config comparison with 2-3 seeds:** all seeds count, none dropped except documented crashes.
+  - **Improved:** every seed of the new config above every baseline seed, AND a mean difference of at least the larger of 15 points or 1 baseline SD on the dev set.
+  - **Worse:** the same test in reverse.
+  - **Anything else: inconclusive,** reported that way with all seed values.
+  - Full separation has chance probability 1/10 for 2 v 3 seeds and 1/20 for 3 v 3, so even "improved" is directional evidence, not significance.
+- **Stopping:** every seed at or above 70% on the dev set means confirm once on the locked set, then stop. Otherwise report the best config's mean and SD across all its seeds. A single best seed is never the headline.
+
+## Model B 1,005 trials at 1500 total steps: 57.9%, tied with Model A
+
+- **Date:** 2026-11-02. `batch_closed_loop_trials.py`, `model_b.pt` (25ch), seeds 0-66, 0 failures: **582/1005 (57.9%)**, against Model A's 589/1005 (58.6%). Label both "1500 total steps, 200 at full pull, slip-only scoring". Comparable with each other only. The drop finding below means neither rate measures objects actually held.
+
+## Formation-drop recording added -- and many "held" hand-tuned trials are objects on the floor
+
+- **Date:** 2026-11-02. Read-only scans of stored data and 5 re-run trials. No training or dataset change.
+- **Change:** `run_trial()` now records `dropped_during_formation` and `formation_max_fall`, using the same test as `SlipGraspEnv.step()`: fall from spawn height above 0.05 m during ramp or settle. `rl_env.py` now reads the threshold from one shared constant, same value. The spawn height comes from a separate `MjData`, so the simulation state is untouched.
+- **Verified:** 5 known trials (A: `cube`/0, `plus_cross`/0, `flat_disk`/0. B: `cube`/0, `plus_cross`/0) reproduce the stored 1,005-trial results bitwise on every stored field. RL's spawn height matches on 2 scenes (0.245 m).
+- **Batch runner hardened after two reviews:** `--max-steps` and `--squeeze-intensity` are now required, full config and code hash are stored in every row, a file with a different config is refused, runs resume after a crash, and interrupted trials are not saved.
+- **The cube/seed=0 anomaly is resolved.** `cube`/0 scores "held" (displacement 0.0059) with `formation_max_fall` 0.227 m from a 0.245 m spawn: it has fallen to about floor level before the displacement reference is latched at end of settle, so it barely moves afterwards. `flat_disk`/0 is the same (fall 0.243 m, displacement 0.0002, no corrections). The diagnostic that found it on the floor and the batch that scored it held were both right. Engine-level non-reproducibility is not needed to explain it.
+- **Consequence:** every hand-tuned rate so far (40.0%, 33.3%, 58.6%, 57.9%) counts dropped objects that land and stay put as held. The fraction is being measured by the 2300-step reruns.
+- **The same problem is in the TCN's dataset.** `generate_trials.py` latches its reference the same way. `Data/pitcn_dataset_full_random_split.npz` has 12,259 + 2,627 + 2,628 = 17,514 trials, exactly the `ever_contacted` trials in `manifest_full_merged.json`. A random sample of 1,000 of those, applying the same fall test to the stored `obj_z`:
+
+| `trial_slip_label` | Trials sampled | Fell > 5 cm in formation | Median fall |
+|---|---|---|---|
+| 0 (no slip) | 398 | 297 (74.6%) | 0.215 m |
+| 1 (slip) | 602 | 245 (40.7%) | 0.045 m |
+
+- At `squeeze_intensity >= 0.9`, 59 of the 100 sampled no-slip trials had also dropped, so higher grip does not remove it.
+- **What this does and doesn't show.** About three quarters of the sampled no-slip training examples appear to be objects that had already fallen out of the hand, even though each had some finger contact at some point. Model A and Model B may therefore have learned partly to tell "falling" from "already at rest", rather than slip from secure grip. That is a hypothesis: F1 on trials without a formation drop has not been measured. These numbers are a sample, and they do not show how much of the models' F1 depends on these trials.
+- **Not done:** no relabelling, regeneration or retraining. Those are stop conditions and need a decision. RL training is also affected indirectly, since RL observations include the TCN's slip probability.
+
+## `model_a.pt` is the F1 0.691 retrain, not the cited 0.773 checkpoint (hash match; F1 measurement pending)
+
+- **Date:** 2026-11-03. Found by review of `src/analysis/tcn_f1_without_drops.py`. Read-only.
+- **Fact:** `src/training/model_a.pt` and `model_a_f1_0691_run.pt` have the same sha256 (`ce813826...`) and the same timestamp (2026-10-25 21:06). This entry's earlier section says the restore run "landed at F1=0.691", and that 0.773 "remains the number currently in use".
+- **Consequence if the measurement confirms it:** all later Model A closed-loop numbers, and every RL policy's TCN observation, use the 0.691 checkpoint. That includes `results.md`'s "Model A (22ch, F1=0.773 static)" label, written with a run from the same evening, and 40.0%, 58.6%, and the current 2300-step run. Model A versus Model B closed-loop comparisons are then 0.691 versus 0.799 static F1, and the static 0.773 versus 0.799 comparison would refer to a different file.
+- **Earlier version:** git commit 9d4d079 (2026-10-24 20:34) has a different `model_a.pt` (`dbb50c5a...`), extracted to the scratchpad only. Whether it is the 0.773 run is not known yet.
+- **Next:** gate-only runs of both checkpoints in the next gap between MuJoCo jobs. No checkpoint is replaced, and no subset numbers are produced until the gate is settled.
+
+## Correction, by measurement: the checkpoint in `model_a.pt` has F1 0.691. The 0.773 model is an older file in git
+
+- **Date:** 2026-11-03, 12:37am. `src/analysis/tcn_f1_without_drops.py --gate-only`, whole test split (2,628 trials), per-timestep pooled metric, CPU. Tolerance +/-0.001, fixed in the script before measuring. Log: `Data/_tcn_gate_only.log`.
+
+| Checkpoint (sha256 prefix) | Where it is | Decision rule | Logged F1 / accuracy | Measured F1 / accuracy | Gate |
+|---|---|---|---|---|---|
+| `ce813826` | `src/training/model_a.pt` (same bytes as `model_a_f1_0691_run.pt`) | argmax | 0.691 / 0.887 | 0.690658 / 0.886765 | OK |
+| `dbb50c5a` | `model_a.pt` in commit 9d4d079 only, not in the working tree | argmax | 0.772893 / 0.898991 | 0.772911 / 0.899000 | OK |
+| `948a2716` | `src/training/model_b.pt` | threshold 0.50 | 0.772206 / not logged | 0.772206 / 0.910707 | OK |
+| `948a2716` | `src/training/model_b.pt` | threshold 0.30 | 0.798588 / 0.908238 | 0.798584 / 0.908237 | OK |
+
+- **This corrects** the line "Model A (22ch, F1=0.773 static): 8/45 (17.8%) held securely" in "Closed-loop batch trial results (Model A vs Model B, 45 trials each)". That line stays as written, because this file is append-only. If that run used the current file, its label should read `ce813826`, F1 0.691. The file's timestamp (2026-10-25 21:06) is before that batch's stored results (22:07) and after the 9d4d079 commit, but no log records which file the 8/45 run loaded.
+- **What is measured about later runs:** the 1,005-trial and 2300-step hand-tuned runs and the 2.2%, seedcheck and seed3 RL runs loaded `src/training/model_a.pt` after that timestamp, so they used `ce813826`, F1 0.691. The 2300-step rows also store its hash. The earlier 64.4% run's checkpoint dates from 2026-10-30, also after it. Every RL policy therefore used `ce813826` as its slip signal.
+- **The static comparison and the closed-loop comparison use different files.** 0.773 versus 0.799 compares `dbb50c5a` with `948a2716`. Closed-loop Model A versus Model B compares `ce813826` with `948a2716`.
+- **Nothing was restored, replaced or renamed.** Which Model A the paper cites is the user's decision.
+
+## Hand-tuned at 2300 steps, 1,005 trials each: 18.9% and 19.3% under RL's 5 cm rule, and that rule is itself in question
+
+- **Date:** 2026-11-03. Files: `Data/handtuned_model{A,B}_2300step_results.jsonl`. No errors or duplicates. Model A is `ce813826` (F1 0.691), Model B is `948a2716`.
+- **Scores (held of 1,005):** no drop rule A 448 (44.6%), B 449 (44.7%). 15 cm rule A 319 (31.7%), B 320 (31.8%). 5 cm rule A 190 (18.9%), B 194 (19.3%). Seeds 3-66 (960 trials), 5 cm rule: A 180 (18.8%), B 185 (19.3%). Paired at 5 cm: 6 held only by A, 10 only by B. Tied.
+- **Drop flags are the same for A and B on all 1,005 trials,** as expected, because formation runs before any controller action.
+- **Older results with falls joined on:** 1500 steps, A 58.6% to 45.5% (15 cm) and 26.6% (5 cm), B 57.9% to 44.8% and 25.9%. 2500 steps, 45 trials, A 40.0% to 31.1% and 22.2%, B 33.3% to 24.4% and 17.8%. Prefix check: Model A's shorter run never exceeds its longer run's maximum displacement, in 1,005 of 1,005 and 45 of 45 trials.
+- **The 5 cm cutoff sits in the densest part of the distribution.** Trials by fall: 4.5-5.0 cm 117, 5.0-5.5 cm 171, 5.5-6.0 cm 89. Model A held by cutoff: 5 cm 190, 6 cm 302, 7 cm 316, 8 cm 317, 10-20 cm 319. Only 147 trials fell more than 15 cm, and 129 of those scored as held under the old rule.
+- **Objects that sank 5-7 cm look gripped in training data.** Sample of 1,500 contact-only trials, seed 2, end of settle: 5 cm or less (n=739) median 4 contacts, force 16.2, 75.1% slip. 5-7 cm (n=232) median 5 contacts, force 49.4, 75.4% slip. 7-15 cm (n=150) median 3 contacts, force 0.15, 98.0% slip. Over 15 cm (n=379) median force 0.15, 7.9% slip. Not measured directly in closed loop.
+- **Correction to "Formation-drop recording added" above:** it says about three quarters of sampled no-slip examples appear to have fallen out of the hand. That counted everything past 5 cm. In this sample, 349 of 593 no-slip examples (59%) fell more than 15 cm, and 57 (10%) sank 5-7 cm.
+- **Correction to "A genuinely new, concentrated failure mode: formation-phase drops":** that entry calls these drops structurally impossible under hand-tuned control. On the same 45 trials, hand-tuned passes 5 cm in 23, and RL in 11, 14 and 22.
+- **RL comparison on the same 45 trials, 5 cm rule:** hand-tuned A 10/45, B 9/45. RL 29/45, 16/45, 8/45. Paired against Model A: seed 2 has 11 held only by RL and 5 only by hand-tuned; seed 3 has 4 and 6. Seed 1 has no per-trial file. RL trials end at the 5 cm crossing, so RL can't be re-scored at another cutoff without a new evaluation.
+- **Not changed:** the 5 cm rule, the benchmark, any checkpoint. Which rule the paper uses is the user's decision.
+
+## TCN F1 split by formation drop (5 cm rule), all checkpoints gated
+
+- **Date:** 2026-11-03, 12:38am. `src/analysis/tcn_f1_without_drops.py`, whole test split (2,628 trials: 1,224 no drop, 1,404 drop), pooled per timestep, CPU. Output: `reports/tcn_f1_without_drops.json`, `Data/_tcn_f1_subsets.log`.
+- **F1 (all / no drop / drop):** `ce813826` argmax 0.691 / 0.789 / 0.559. `dbb50c5a` argmax 0.773 / 0.868 / 0.660. `948a2716` threshold 0.50 0.772 / 0.868 / 0.638. `948a2716` threshold 0.30 0.799 / 0.879 / 0.703.
+- **Reading:** F1 is higher without drop trials, so these trials aren't inflating it. The slip base rate differs between subsets (26.5% vs. 19.3%), so this isn't purely a model effect. The split uses the 5 cm rule, and no floor-level split has been run. This doesn't measure how floor-level training examples affect closed-loop behaviour.
+
+## RL re-scored past the 5 cm rule: the old scores reproduce exactly, and the rule barely changes them
+
+- **Date:** 2026-11-03. `evaluate_rl_policy.py --continue-past-formation-drop`, original 45 trials, deterministic, `model_a.pt` (`ce813826`). Files: `Data/rescore_45_seed{1,2,3}.jsonl`, `Data/rescore_check_seed3_default.jsonl`. Reviewed independently before these results were used. The review's later fixes (fall omitted from default rows, script added to the code hash, plain bools in `info`) don't touch trial handling.
+- **Reproduction passed.** Seed 3 in default mode matches its old log on all 45 trials. With the flag on, seed 2 and seed 3 match on every held and drop flag, and on slip and displacement for trials without a drop. Seed 1 has no old per-trial log, but it matches the logged 29/45 and all 15 per-object counts. So 64.4% is reproducible, and the seed spread comes from training, not evaluation noise.
+- **Held of 45 (5 cm / 10 cm / 15 cm):** seed 1 29 / 29 / 29. Seed 2 16 / 17 / 17. Seed 3 8 / 8 / 8. Hand-tuned A 10 / 14 / 14. Hand-tuned B 9 / 12 / 12.
+- **Falls (5 cm or less / 5-15 cm / over 15 cm):** seed 1 34 / 7 / 4. Seed 2 31 / 7 / 7. Seed 3 23 / 7 / 15. Of the 21 RL trials that fell 5-15 cm, 1 held.
+- **Paired with hand-tuned A at 10 cm (held only by RL / only by hand-tuned):** seed 1 15 / 0. Seed 2 8 / 5. Seed 3 4 / 10. Seed 1 is the best of 3 seeds, so its result is favourably selected.
+- **Reading:** the 5 cm rule is not what is holding these policies back. This corrects the suggestion, in the 2300-step entry above and in my messages, that RL's drop failures might include many real grips. On these policies they mostly don't. The limit: these policies were never trained past 5 cm, so this doesn't show what a policy trained under a looser rule could do. It only removes the direct evidence for trying one.
+- **Order change:** the locked-set runs start before the dev-set checks, at the user's request, so the paper has them first. They aren't used to choose anything, so the pre-registered rule still holds.
+
+## Pre-registered: longer rollouts (n_steps 512), 3 fresh seeds (written before any of these runs)
+
+- **Date:** 2026-11-03.
+- **Why:** identical re-runs reproduce exactly, so the 17.8%-64.4% spread comes from training. Each rollout is 256 steps per env, and a held trial lasts up to 460, so updates often see partial trials. This is a hypothesis about the spread, not a known cause.
+- **The one change:** `n_steps` 256 to 512. Batch size stays 256, so each rollout gives 8 minibatches instead of 4. Everything else matches the baseline seeds: 300,000 env steps (rounding to whole rollouts makes it 301,056, against 300,032), 4 envs, learning rate, reward, observations, training objects, and TCN `ce813826`. All three seeds count. Crashes get documented, not dropped.
+- **Scoring:** dev set, seeds 1000-1009, deterministic, trials running past 5 cm. The 5 cm rule is primary because it is RL's existing rule, and 10 cm is reported beside it. If the deterministic versus stochastic check trips its rule, stop and report before using these.
+- **Verdict:** the existing rule, against the three baseline seeds on the same dev set. Improved needs every new seed above every baseline seed AND a mean difference of at least the larger of 15 points or 1 baseline SD. Worse is the reverse. Anything else is inconclusive. That is a high bar and inconclusive is the likeliest outcome.
+- **Spread:** SD across seeds is reported, but 3 seeds per config can't support a verdict on it.
+- **Not running:** a 10 cm retrain, because re-scoring removed the direct evidence for it (1 of 135 RL scores changed). `norm_obs`-only, because it is lower priority than this. Neither result is known, and either could be tried later.
+- **Code timing:** `--n-steps` goes into `train_rl_policy.py` only after the evaluation chain ends, because `evaluate_rl_policy.py` imports that file.
+
+- **Addendum to "Pre-registered: longer rollouts", from code review, before any run:** 301,056 steps holds only for a run with no crash. Crash-and-resume runs can total 300,040-302,032, and the baselines were 300,224, 300,408 and 300,032. Each crash also discards about 1,016 counted steps, against 504 at baseline. Record each seed's actual total and crash count with its result. If a seed crashes between its last checkpoint and final save, the script uses that last checkpoint as the final policy and says so in `Data/_run_nsteps_retrain.out`.

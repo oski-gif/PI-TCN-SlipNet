@@ -41,6 +41,8 @@ Usage:
         --object cube
 """
 import argparse
+import hashlib
+import json
 import os
 import random
 import sys
@@ -66,6 +68,41 @@ from generate_trials import (
 # the causal receptive field is 1 + sum((kernel_size-1)*dilation) for all
 # layers = 1 + 2*(1+2+4+8+16+32+64) = 255. 300 gives a safety margin.
 WINDOW_SIZE = 300
+FORMATION_DROP_THRESHOLD = 0.05  # meters fallen from spawn height in ramp/settle counted as a drop
+
+
+def file_sha256(path):
+    if path is None:
+        return None
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def read_rows_for_resume(path, run_config):
+    """Rows from a resumable results file. Raises if any row was written with a
+    different config, before anything on disk is changed. A crash mid-write can
+    leave a partial last line, which is dropped so the next append cannot glue
+    onto it."""
+    with open(path) as f:
+        lines = f.readlines()
+    truncated = bool(lines) and not lines[-1].endswith("\n")
+    rows =[json.loads(line) for line in (lines[:-1] if truncated else lines)]
+    for row in rows:
+        mismatch = {k: (row.get(k), v) for k, v in run_config.items() if row.get(k) != v}
+        if mismatch:
+            raise ValueError(f"{path} was written with a different config, "
+                             f"refusing to overwrite or mix results: {mismatch}")
+    if truncated:
+        print(f"Dropping truncated final row from {path}")
+        tmp_path = path + ".tmp"
+        with open(tmp_path, "w") as f:
+            f.writelines(lines[:-1])
+        os.replace(tmp_path, path)
+    return rows
+
 
 # Set by load_model() -- the model itself is process-wide/load-once-per-batch
 # state, which is fine (each SlipGraspEnv/run_trial() call in a given process
@@ -228,7 +265,11 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
     Returns dict with: object, seed, slipped (bool, displacement exceeded
     the SAME per-object threshold definition generate_trials.py uses),
     max_displacement, threshold, max_slip_probability, final_slip_probability,
-    n_corrections (how many times decide_action() actually adjusted the grip).
+    n_corrections (how many times decide_action() actually adjusted the grip),
+    dropped_during_formation (bool, the same fall test SlipGraspEnv.step() uses
+    in ramp/settle) and formation_max_fall (meters). Recording these does not
+    stop the trial or change control or `slipped`: unlike the RL env, a dropped
+    trial runs on, so score it as not slipped AND not dropped to match RL.
     """
     feature_names = build_feature_names(args.fingertips)
     keep_idx = [i for i, n in enumerate(feature_names) if n not in LEAKAGE_FEATURES]
@@ -326,6 +367,13 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
     feature_history = []
     viewer_handle = mujoco.viewer.launch_passive(model, data) if use_viewer else None
 
+    # A separate MjData, so finding the spawn height leaves `data` untouched:
+    # the RL env's mj_forward at reset gives this same height at qpos0.
+    spawn_probe = mujoco.MjData(model)
+    mujoco.mj_kinematics(model, spawn_probe)
+    spawn_z = float(spawn_probe.xpos[obj_body_id][2])
+    formation_max_fall = 0.0
+
     ref_pos = None
     max_displacement = 0.0
     max_slip_probability = 0.0
@@ -370,6 +418,10 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
             data.xfrc_applied[obj_body_id, :3] = [0.0, 0.0, -pull]
 
             mujoco.mj_step(model, data)
+
+            if phase < 2:
+                formation_max_fall = max(formation_max_fall,
+                                         spawn_z - float(data.xpos[obj_body_id][2]))
 
             if step == monitor_start - 1:
                 # Reference position for displacement, latched at the end of
@@ -447,6 +499,9 @@ def run_trial(args, object_name, seed, max_steps, use_viewer=False, verbose=True
         "max_slip_probability": max_slip_probability,
         "final_slip_probability": last_slip_probability,
         "n_corrections": n_corrections,
+        "dropped_during_formation": bool(formation_max_fall > FORMATION_DROP_THRESHOLD),
+        "formation_max_fall": formation_max_fall,
+        "steps_completed": step,
     }
 
 

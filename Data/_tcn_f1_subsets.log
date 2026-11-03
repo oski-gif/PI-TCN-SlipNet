@@ -1,0 +1,37 @@
+obj_z at first timestep: 0.24500 to 0.24500 m; phases [0.0, 1.0, 2.0]
+Raw check: 40 test trials match raw files on fall, length and labels (worst fall difference 7.45e-09 m)
+Gate, ce813826 F1=0.691 (22ch, argmax): logged F1 0.691000, accuracy 0.887000; measured F1 0.690658, accuracy 0.886765, OK
+Gate, 948a2716 F1=0.772 (25ch, threshold 0.50): logged F1 0.772206; measured F1 0.772206, accuracy 0.910707, OK
+Gate, 948a2716 F1=0.799 (25ch, threshold 0.30): logged F1 0.798588, accuracy 0.908238; measured F1 0.798584, accuracy 0.908237, OK
+Gate, dbb50c5a F1=0.773 (22ch, argmax): logged F1 0.772893, accuracy 0.898991; measured F1 0.772911, accuracy 0.899000, OK
+
+Fall > 0.05 m before the pull, whole test split:
+  all trials  trials  2628   no-slip  1047   slip  1581
+  no drop     trials  1224   no-slip   304   slip   920
+  drop        trials  1404   no-slip   743   slip   661
+
+ce813826 F1=0.691 (22ch, argmax)
+  subset             tp        fp        tn        fn pos.rate   prec       recall (95% CI)         spec (95% CI)           f1 (95% CI)
+  all trials     597881     63623   3596320    471953    0.226  0.904   0.559 (0.537-0.579)   0.983 (0.980-0.985)   0.691 (0.673-0.707)
+  no drop        391688     19023   1600979    191096    0.265  0.954   0.672 (0.651-0.693)   0.988 (0.986-0.990)   0.789 (0.773-0.803)
+  drop           206193     44600   1995341    280857    0.193  0.822   0.423 (0.391-0.457)   0.978 (0.974-0.982)   0.559 (0.526-0.591)
+
+948a2716 F1=0.772 (25ch, threshold 0.50)
+  subset             tp        fp        tn        fn pos.rate   prec       recall (95% CI)         spec (95% CI)           f1 (95% CI)
+  all trials     715840     68340   3591603    353994    0.226  0.913   0.669 (0.647-0.690)   0.981 (0.979-0.984)   0.772 (0.757-0.787)
+  no drop        469421     29630   1590372    113363    0.265  0.941   0.805 (0.786-0.825)   0.982 (0.979-0.984)   0.868 (0.855-0.880)
+  drop           246419     38710   2001231    240631    0.193  0.864   0.506 (0.471-0.542)   0.981 (0.977-0.985)   0.638 (0.607-0.668)
+
+948a2716 F1=0.799 (25ch, threshold 0.30)
+  subset             tp        fp        tn        fn pos.rate   prec       recall (95% CI)         spec (95% CI)           f1 (95% CI)
+  all trials     860408    224591   3435352    209426    0.226  0.793   0.804 (0.787-0.821)   0.939 (0.934-0.943)   0.799 (0.785-0.811)
+  no drop        515126     74241   1545761     67658    0.265  0.874   0.884 (0.868-0.899)   0.954 (0.949-0.959)   0.879 (0.868-0.890)
+  drop           345282    150350   1889591    141768    0.193  0.697   0.709 (0.678-0.741)   0.926 (0.918-0.934)   0.703 (0.679-0.726)
+
+dbb50c5a F1=0.773 (22ch, argmax)
+  subset             tp        fp        tn        fn pos.rate   prec       recall (95% CI)         spec (95% CI)           f1 (95% CI)
+  all trials     812950    220822   3439121    256884    0.226  0.786   0.760 (0.742-0.778)   0.940 (0.935-0.944)   0.773 (0.759-0.786)
+  no drop        497222     66323   1553679     85562    0.265  0.882   0.853 (0.835-0.870)   0.959 (0.955-0.963)   0.868 (0.856-0.878)
+  drop           315728    154499   1885442    171322    0.193  0.671   0.648 (0.617-0.679)   0.924 (0.916-0.932)   0.660 (0.635-0.683)
+
+Wrote C:\Users\oskic\PI-TCN-SlipNet\reports\tcn_f1_without_drops.json

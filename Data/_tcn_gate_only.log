@@ -1,0 +1,7 @@
+obj_z at first timestep: 0.24500 to 0.24500 m; phases [0.0, 1.0, 2.0]
+Raw check: 40 test trials match raw files on fall, length and labels (worst fall difference 7.45e-09 m)
+Gate, ce813826 F1=0.691 (22ch, argmax): logged F1 0.691000, accuracy 0.887000; measured F1 0.690658, accuracy 0.886765, OK
+Gate, 948a2716 F1=0.772 (25ch, threshold 0.50): logged F1 0.772206; measured F1 0.772206, accuracy 0.910707, OK
+Gate, 948a2716 F1=0.799 (25ch, threshold 0.30): logged F1 0.798588, accuracy 0.908238; measured F1 0.798584, accuracy 0.908237, OK
+Gate, dbb50c5a F1=0.773 (22ch, argmax): logged F1 0.772893, accuracy 0.898991; measured F1 0.772911, accuracy 0.899000, OK
+Gate-only run: nothing written.

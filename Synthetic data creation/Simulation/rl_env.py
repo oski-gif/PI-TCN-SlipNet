@@ -194,7 +194,7 @@ HOLD_BONUS = 20.0
 CONTACT_TOUCH_THRESHOLD = 0.01
 CONTACT_COEF = 1.0
 INSTABILITY_COEF = 0.1
-DROP_THRESHOLD = 0.05  # meters fallen from spawn height counted as a drop
+DROP_THRESHOLD = cls.FORMATION_DROP_THRESHOLD  # meters fallen from spawn height counted as a drop
 DROP_PENALTY = 15.0
 GRIP_FORCE_COEF = 0.15  # see module docstring's GRIP_FORCE_COEF note
 GRIP_FORCE_CAP_MULTIPLE = 2.0  # saturate once grip exceeds 2x the object's own weight
@@ -234,9 +234,14 @@ class SlipGraspEnv(gym.Env):
     metadata = {"render_modes": []}
 
     def __init__(self, args, object_names, device="cpu", force_cpu_model=True,
-                episode_rng_seed=None, build_lock=None, worker_idx=None):
+                episode_rng_seed=None, build_lock=None, worker_idx=None,
+                terminate_on_formation_drop=True):
         super().__init__()
         self.args = args
+        # False is for evaluation only (evaluate_rl_policy.py's
+        # --continue-past-formation-drop): the trial runs on past a formation
+        # drop instead of ending there. Training always uses the default.
+        self._terminate_on_formation_drop = terminate_on_formation_drop
         self._worker_idx = worker_idx  # TEMP DIAGNOSTIC, see _diag_log above
         _diag_log(worker_idx, "SlipGraspEnv.__init__ starting")
         # Several workers calling mujoco.MjModel.from_xml_path() at the
@@ -507,6 +512,7 @@ class SlipGraspEnv(gym.Env):
         self._max_displacement = 0.0
         self._effective_threshold = 0.15 * self.obj_spec["char_length"]
         self._spawn_pos = self.data.xpos[self.obj_body_id].copy()
+        self._formation_max_fall = 0.0
 
         self._observe_step(phase=0, pull=0.0)
 
@@ -578,7 +584,8 @@ class SlipGraspEnv(gym.Env):
                 min_finger_acc += MIN_FINGER_FRACTION_COEF * min_finger_frac
 
                 fall = self._spawn_pos[2] - self.data.xpos[self.obj_body_id][2]
-                if fall > DROP_THRESHOLD:
+                self._formation_max_fall = max(self._formation_max_fall, fall)
+                if fall > DROP_THRESHOLD and self._terminate_on_formation_drop:
                     terminated, dropped = True, True
                     break
             else:
@@ -608,7 +615,10 @@ class SlipGraspEnv(gym.Env):
         obs = self._obs_from_buffer()
         info = {
             "slipped": slipped,
-            "dropped_during_formation": dropped,
+            # Same value as `dropped` when terminating on a drop, since the
+            # trial ends at the first crossing. Otherwise it stays set once crossed.
+            "dropped_during_formation": bool(self._formation_max_fall > DROP_THRESHOLD),
+            "formation_max_fall": float(self._formation_max_fall),
             "max_displacement": self._max_displacement,
             "threshold": self._effective_threshold,
             "slip_probability": last_prob,

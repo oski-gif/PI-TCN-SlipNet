@@ -1,0 +1,68 @@
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+No VecNormalize sidecar found or given -- evaluating with raw observations (correct for policies trained without VecNormalize).
+cube                 seed=0  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0060
+cube                 seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0060
+cube                 seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0060
+sphere               seed=0  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0060
+sphere               seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0060
+sphere               seed=2  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0060  threshold=0.0060
+cone                 seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0060  threshold=0.0060
+cone                 seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0061  threshold=0.0060
+cone                 seed=2  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0060  threshold=0.0060
+rectangular_prism    seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0106  threshold=0.0105
+rectangular_prism    seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0105
+rectangular_prism    seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0032  threshold=0.0105
+cylindrical_prism    seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0090  threshold=0.0090
+cylindrical_prism    seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0091  threshold=0.0090
+cylindrical_prism    seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0090
+capsule              seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0079  threshold=0.0120
+capsule              seed=1  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0110  threshold=0.0120
+capsule              seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0109  threshold=0.0120
+ellipsoid            seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0110  threshold=0.0090
+ellipsoid            seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0090
+ellipsoid            seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0020  threshold=0.0090
+flat_disk            seed=0  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0105
+flat_disk            seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0105
+flat_disk            seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0105
+rod                  seed=0  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0135
+rod                  seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0135
+rod                  seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0135
+l_block              seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0075  threshold=0.0120
+l_block              seed=1  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0118  threshold=0.0120
+l_block              seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0120
+dumbbell             seed=0  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0135
+dumbbell             seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0135
+dumbbell             seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0135
+plus_cross           seed=0  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0090
+plus_cross           seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0090  threshold=0.0090
+plus_cross           seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0090
+square_pyramid       seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0022  threshold=0.0060
+square_pyramid       seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0060  threshold=0.0060
+square_pyramid       seed=2  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0072  threshold=0.0060
+triangular_prism     seed=0  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0075
+triangular_prism     seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0121  threshold=0.0075
+triangular_prism     seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0000  threshold=0.0075
+hexagonal_prism      seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0061  threshold=0.0060
+hexagonal_prism      seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0060  threshold=0.0060
+hexagonal_prism      seed=2  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0061  threshold=0.0060
+
+Overall: 8/45 held securely (17.8%)
+TRAIN objects: 8/33 held securely (24.2%)
+HOLDOUT objects: 0/12 held securely (0.0%)
+
+Per-object breakdown:
+  cube                  0/3 held securely
+  sphere                0/3 held securely
+  cone                  0/3 held securely
+  rectangular_prism     1/3 held securely
+  cylindrical_prism     0/3 held securely
+  capsule               3/3 held securely
+  ellipsoid             1/3 held securely
+  flat_disk             0/3 held securely
+  rod                   0/3 held securely
+  l_block               2/3 held securely
+  dumbbell              0/3 held securely
+  plus_cross            0/3 held securely
+  square_pyramid        1/3 held securely
+  triangular_prism      0/3 held securely
+  hexagonal_prism       0/3 held securely

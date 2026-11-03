@@ -1,0 +1,75 @@
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+No VecNormalize sidecar found or given -- evaluating with raw observations (correct for policies trained without VecNormalize).
+Eval config: {'policy': '../../Data/ppo_slip_policy_seedcheck.zip', 'policy_sha256': 'af378971a0b1ae392aaeff14f80736dfa5b51b2689d60fee4f946e4514e99a0c', 'vecnormalize': None, 'vecnormalize_sha256': None, 'deterministic': True, 'eval_path': 'direct', 'continue_past_formation_drop': True, 'checkpoint': '../../src/training/model_a.pt', 'checkpoint_sha256': 'ce813826685548b24c3fe51661ab56dd20959a2924769ade459e8e7876348792', 'in_channels': 22, 'code_sha256': ['c14138b27002e23880157ce97b90e806f8496aa3bf57b74f9245426d64e8d412', 'b9b3d6f52655c2223414156b0f80c2a9441b0284211a73b533a09da79bc79c57'], 'seed_start': 0, 'n_trials_per_object': 3, 'mjcf': '../../third_party/orcahand_description/v2/scene_slip.xml', 'mjcf_sha256': 'd9d3aefde2f97b524a6977b31580f1c39b04f2817ed346514b0ccec58300e3e8', 'mesh_dir': '../../assets', 'fingertips': ['right_T-DP_b7429e50', 'right_I-FingerTipAssembly_ec49c16c', 'right_M-FingerTipAssembly_34afb748', 'right_M-FingerTipAssembly_424a8e75', 'right_P-FingerTipAssembly_cd219176'], 'actuators': ['right_t-mcp_actuator', 'right_t-pip_actuator', 'right_i-mcp_actuator', 'right_i-pip_actuator', 'right_m-mcp_actuator', 'right_m-pip_actuator', 'right_r-mcp_actuator', 'right_r-pip_actuator', 'right_p-mcp_actuator', 'right_p-pip_actuator'], 'normal_axis': 2, 'max_steps_after_settle': 1500, 'ramp_steps': 500, 'settle_steps': 300, 'pull_ramp_steps': 500, 'total_steps': 2300, 'full_pull_steps': 1000, 'pull_multiple': 1.5, 'squeeze_intensity': 0.95, 'object_pos': [0.085, 0.04, 0.245], 'pad_friction_range': [0.35, 1.2], 'orientation_tilt_deg_max': 10.0, 'reward_config': {'ACTION_REPEAT': 5, 'OBS_WINDOW': 5, 'MAX_DELTA_PER_STEP': 0.08, 'ALPHA_DISPLACEMENT': 50.0, 'EFFORT_COEF': 0.02, 'SLIP_PENALTY': 20.0, 'HOLD_BONUS': 20.0, 'CONTACT_TOUCH_THRESHOLD': 0.01, 'CONTACT_COEF': 1.0, 'INSTABILITY_COEF': 0.1, 'DROP_THRESHOLD': 0.05, 'DROP_PENALTY': 15.0, 'GRIP_FORCE_COEF': 0.15, 'GRIP_FORCE_CAP_MULTIPLE': 2.0, 'MIN_FINGER_FRACTION_COEF': 0.0}}, seeds 0-2
+cube                 seed=0  held=False  slipped=True  dropped_during_formation=True  max_disp=0.0074  threshold=0.0060  ep_len=228  ep_reward=725.8  formation_max_fall=0.0613
+cube                 seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0061  threshold=0.0060  ep_len=292  ep_reward=581.6  formation_max_fall=0.0153
+cube                 seed=2  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0060  threshold=0.0060  ep_len=190  ep_reward=748.5  formation_max_fall=0.0447
+sphere               seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0013  threshold=0.0060  ep_len=460  ep_reward=559.6  formation_max_fall=0.0183
+sphere               seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0061  threshold=0.0060  ep_len=209  ep_reward=535.1  formation_max_fall=0.0164
+sphere               seed=2  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0062  threshold=0.0060  ep_len=266  ep_reward=570.6  formation_max_fall=0.0126
+cone                 seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0010  threshold=0.0060  ep_len=460  ep_reward=582.3  formation_max_fall=0.0229
+cone                 seed=1  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0032  threshold=0.0060  ep_len=460  ep_reward=495.7  formation_max_fall=0.0177
+cone                 seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0013  threshold=0.0060  ep_len=460  ep_reward=578.4  formation_max_fall=0.0223
+rectangular_prism    seed=0  held=False  slipped=True  dropped_during_formation=True  max_disp=0.0113  threshold=0.0105  ep_len=191  ep_reward=710.9  formation_max_fall=0.0722
+rectangular_prism    seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0105  threshold=0.0105  ep_len=293  ep_reward=697.7  formation_max_fall=0.0410
+rectangular_prism    seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0041  threshold=0.0105  ep_len=460  ep_reward=745.6  formation_max_fall=0.0258
+cylindrical_prism    seed=0  held=False  slipped=True  dropped_during_formation=True  max_disp=0.0091  threshold=0.0090  ep_len=201  ep_reward=635.9  formation_max_fall=0.0796
+cylindrical_prism    seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0090  threshold=0.0090  ep_len=319  ep_reward=688.2  formation_max_fall=0.0329
+cylindrical_prism    seed=2  held=False  slipped=True  dropped_during_formation=True  max_disp=0.0092  threshold=0.0090  ep_len=200  ep_reward=609.3  formation_max_fall=0.0797
+capsule              seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0119  threshold=0.0120  ep_len=460  ep_reward=368.7  formation_max_fall=0.0089
+capsule              seed=1  held=False  slipped=True  dropped_during_formation=True  max_disp=0.0120  threshold=0.0120  ep_len=278  ep_reward=595.3  formation_max_fall=0.0506
+capsule              seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0035  threshold=0.0120  ep_len=460  ep_reward=255.2  formation_max_fall=0.0076
+ellipsoid            seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0090  threshold=0.0090  ep_len=274  ep_reward=570.8  formation_max_fall=0.0112
+ellipsoid            seed=1  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0025  threshold=0.0090  ep_len=460  ep_reward=577.4  formation_max_fall=0.0154
+ellipsoid            seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0030  threshold=0.0090  ep_len=460  ep_reward=265.7  formation_max_fall=0.0127
+flat_disk            seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0107  threshold=0.0105  ep_len=261  ep_reward=318.5  formation_max_fall=0.0299
+flat_disk            seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0105  threshold=0.0105  ep_len=197  ep_reward=339.6  formation_max_fall=0.0141
+flat_disk            seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0084  threshold=0.0105  ep_len=460  ep_reward=167.5  formation_max_fall=0.2385
+rod                  seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0105  threshold=0.0135  ep_len=460  ep_reward=581.6  formation_max_fall=0.0236
+rod                  seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0026  threshold=0.0135  ep_len=460  ep_reward=624.9  formation_max_fall=0.0661
+rod                  seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0090  threshold=0.0135  ep_len=460  ep_reward=589.2  formation_max_fall=0.0234
+l_block              seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0121  threshold=0.0120  ep_len=273  ep_reward=670.5  formation_max_fall=0.0092
+l_block              seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0120  threshold=0.0120  ep_len=370  ep_reward=570.9  formation_max_fall=0.0136
+l_block              seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0007  threshold=0.0120  ep_len=460  ep_reward=374.4  formation_max_fall=0.2419
+dumbbell             seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0032  threshold=0.0135  ep_len=460  ep_reward=542.1  formation_max_fall=0.0394
+dumbbell             seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0029  threshold=0.0135  ep_len=460  ep_reward=376.6  formation_max_fall=0.2130
+dumbbell             seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0035  threshold=0.0135  ep_len=460  ep_reward=560.3  formation_max_fall=0.0434
+plus_cross           seed=0  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0091  threshold=0.0090  ep_len=208  ep_reward=566.4  formation_max_fall=0.0229
+plus_cross           seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0090  threshold=0.0090  ep_len=208  ep_reward=557.1  formation_max_fall=0.0077
+plus_cross           seed=2  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0091  threshold=0.0090  ep_len=238  ep_reward=670.6  formation_max_fall=0.0127
+square_pyramid       seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0021  threshold=0.0060  ep_len=460  ep_reward=507.1  formation_max_fall=0.0237
+square_pyramid       seed=1  held=False  slipped=True  dropped_during_formation=False  max_disp=0.0061  threshold=0.0060  ep_len=302  ep_reward=399.7  formation_max_fall=0.0143
+square_pyramid       seed=2  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0019  threshold=0.0060  ep_len=460  ep_reward=463.9  formation_max_fall=0.0223
+triangular_prism     seed=0  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0013  threshold=0.0075  ep_len=460  ep_reward=369.7  formation_max_fall=0.2524
+triangular_prism     seed=1  held=False  slipped=True  dropped_during_formation=True  max_disp=0.0133  threshold=0.0075  ep_len=162  ep_reward=361.9  formation_max_fall=0.0514
+triangular_prism     seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0010  threshold=0.0075  ep_len=460  ep_reward=367.8  formation_max_fall=0.2538
+hexagonal_prism      seed=0  held=True  slipped=False  dropped_during_formation=False  max_disp=0.0041  threshold=0.0060  ep_len=460  ep_reward=483.2  formation_max_fall=0.0176
+hexagonal_prism      seed=1  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0011  threshold=0.0060  ep_len=460  ep_reward=377.5  formation_max_fall=0.2541
+hexagonal_prism      seed=2  held=False  slipped=False  dropped_during_formation=True  max_disp=0.0014  threshold=0.0060  ep_len=460  ep_reward=379.8  formation_max_fall=0.2533
+
+Overall: 16/45 held securely (35.6%)
+Held with formation fall <= 5 cm: 16/45 (35.6%)
+Held with formation fall <= 10 cm: 17/45 (37.8%)
+Held with formation fall <= 15 cm: 17/45 (37.8%)
+TRAIN objects: 12/33 held securely (36.4%)
+  mean ep_len=379  ep_reward=493.0  formation_reward=526.3  phase2_reward=-33.2
+HOLDOUT objects: 4/12 held securely (33.3%)
+  mean ep_len=307  ep_reward=587.4  formation_reward=612.4  phase2_reward=-24.9
+
+Per-object breakdown:
+  cube                  0/3 held securely
+  sphere                1/3 held securely
+  cone                  3/3 held securely
+  rectangular_prism     1/3 held securely
+  cylindrical_prism     0/3 held securely
+  capsule               2/3 held securely
+  ellipsoid             2/3 held securely
+  flat_disk             0/3 held securely
+  rod                   2/3 held securely
+  l_block               0/3 held securely
+  dumbbell              2/3 held securely
+  plus_cross            0/3 held securely
+  square_pyramid        2/3 held securely
+  triangular_prism      0/3 held securely
+  hexagonal_prism       1/3 held securely
+RUN_EXIT=0 completed_rows=45

@@ -1820,3 +1820,953 @@ writeup of why) is worth the remaining time before the deadline.
   predicts in phase 2. Does not affect any run logged so far (all RL runs
   use the 22-channel Model A). Suggested fix if RL is ever run with
   Model B 25ch: skip prediction (use 0.0) until `_extra_scalars` is complete.
+
+**Confirmed by direct reproduction, 2026-11-01 (the above was a static
+read; this is an actual run):** constructed a `SlipGraspEnv` with
+`--checkpoint model_b.pt --in-channels 25`, stepped with random actions.
+Crashed exactly as predicted, at **global_step=299** (the step where
+`len(self._full_history)` first reaches `WINDOW_SIZE=300` and
+`predict_slip()` is called for the first time) -- 500 steps before
+`grasp_force_at_settle` would be appended at step 799:
+```
+RuntimeError: Given groups=1, weight of size [32, 25, 1], expected input[1, 24, 300] to have 25 channels, but got 24 channels instead
+```
+`extra_scalars` at the time of the crash held exactly 2 values
+(`[mu_combined, obj_mass]`) as predicted -- confirmed via
+`env._extra_scalars` right after `reset()`. **This is a real, 100%-
+reproducible crash, not a theoretical edge case** -- it fires on
+literally the first `predict_slip()` call of any episode whenever
+`--in-channels 25` is used with `rl_env.py`, well within phase 0
+(global_step 299 vs. `ramp_steps=500`), so there's no scenario where
+training or evaluation with RL + Model B's 25ch checkpoint would run
+past this point without the suggested fix (or an equivalent) applied
+first. Not fixed here, per instructions -- this is exactly the
+information needed to decide whether the bugfix + fresh RL training run
+(hours) is worth doing later.
+
+## Model A vs. Model B closed-loop comparison, finally completed (hand-tuned policy, not RL)
+
+- **Date:** 2026-11-01
+- **Why this was still an open gap:** the original Model A vs. Model B
+  closed-loop comparison (`results.md`'s "Closed-loop batch trial
+  results" entry, 2026-10-25) was invalidated by the gravity bug found
+  the same day -- after the fix, only Model A was ever re-tested
+  (leading to the 13.3%->40.0%/22.2%/40.0% progression cited throughout
+  this file). Model B was never re-benchmarked under the corrected,
+  realistic-timing conditions.
+- **Method:** `batch_closed_loop_trials.py`, same 45-trial benchmark
+  (15 objects x 3 seeds, realistic 500/300 ramp/settle timing,
+  `squeeze_intensity=0.95`, the current tuned hand-crafted
+  `decide_action()`, unmodified) -- identical methodology to every
+  Model A number in this file, now run against `src/training/model_b.pt`
+  (25ch, F1=0.799 static, the current-best Model B checkpoint per the
+  "retrained with num_epochs=40" entry above) with `--in-channels 25`.
+- **Result: Model B is WORSE in closed loop -- 15/45 (33.3%), vs. Model
+  A's 40.0% (18/45) under the identical tuned policy and timing.** Mean
+  `max_slip_probability` 0.6575, mean `n_corrections` 139.33 (both
+  higher than Model A's equivalents from the clean-comparison entry,
+  i.e. Model B is MORE sensitive/reactive, not less, yet still does
+  worse overall -- the same "corrects more, succeeds less" pattern
+  already observed in the original, since-invalidated comparison, now
+  confirmed under correct, realistic conditions instead of the buggy
+  weightless-forever ones).
+- **Per-object, for anyone who wants the detail:**
+  ```
+  object              Model A     Model B
+  sphere               3/3         3/3        same (both easy)
+  dumbbell             3/3         3/3        same (both easy)
+  cube                 1/3*        1/3        same count
+  flat_disk            2/3*        2/3        same count
+  rod                  3/3*        2/3        worse
+  l_block              2/3*        2/3        same count
+  cone                 0/3*        0/3        same (both fail)
+  rectangular_prism    0/3*        0/3        same (both fail)
+  cylindrical_prism    0/3*        0/3        same (both fail)
+  plus_cross           0/3*        0/3        same (both fail)
+  hexagonal_prism      0/3*        0/3        same (both fail)
+  triangular_prism     0/3*        0/3        same (both fail)
+  capsule              2/3*        1/3        worse
+  ellipsoid            1/3*        0/3        worse
+  square_pyramid       1/3*        1/3        same count
+  ```
+  (*Model A per-object figures are the ones already on record from the
+  "THE clean comparison"/mesh-collision entries earlier in this file --
+  not re-run again here, just restated for the side-by-side.) No object
+  does BETTER under Model B; several (`rod`, `capsule`, `ellipsoid`) do
+  worse; the rest tie.
+- **Honest interpretation:** this reconfirms, now on solid methodological
+  footing, what the original (buggy) comparison already suggested and
+  what the static-F1 numbers already hinted at (Model B's higher static
+  F1/accuracy never translated to better closed-loop behavior) --
+  Model B's physics-informed scalar inputs (`mu_combined`, `obj_mass`,
+  `grasp_force_at_settle`) do not help, and plausibly hurt, the actual
+  closed-loop task. Model A remains the better model for anything
+  closed-loop-related, including as the basis for the RL work (already
+  the case -- all RL training in this file used Model A).
+
+## Continuing to train the 64.4% checkpoint, no reward change -- disabled the regressed coefficient first
+
+- **Date:** 2026-11-01
+- **Caught before starting:** `rl_env.py` still had
+  `MIN_FINGER_FRACTION_COEF=3.0` active from yesterday's regressed fix
+  attempt. Continuing to train `Data/ppo_slip_policy_latest.zip` (the
+  64.4% checkpoint) under that reward would have contaminated a
+  supposedly no-reward-change continuation. Set the coefficient to
+  **0.0** (not deleted -- the code path stays, zero contribution) so
+  this run uses the exact reward function the checkpoint was already
+  trained under.
+- **Checked whether reward was still climbing at 300k, as instructed:**
+  training `ep_rew_mean` over the final ~45k steps (the segment that
+  produced the checkpoint) was mostly flat/noisy around 408-426 for a
+  long stretch, then rose to 448-473 in the last ~10-15k steps --
+  ambiguous, not a clean plateau, consistent with "possibly still
+  improving." Holdout-eval reward (`EvalCallback`, active for this
+  entire run) only has recorded points at 40,000/80,000 steps
+  (229.1/524.1) -- no further eval points exist for the 80k-300k range
+  in `Data/rl_logs_production/evaluations*.npz`, an infrastructure gap
+  not diagnosed here (each ~50k segment's fresh `EvalCallback` should
+  have crossed one eval boundary but apparently didn't) -- noted
+  honestly as a real limitation on this specific check, not chased
+  further given the bounded scope of this step.
+- **Proceeding with ~150k more steps** (target 450,000, same self-
+  healing checkpoint-resume orchestrator as the fresh retrain) given the
+  training-reward signal leans toward "maybe still improving" and this
+  is a zero-regression-risk test per the user's framing -- see the next
+  entry for the result.
+
+## Continuation result: 150k more steps completed cleanly (zero crashes), but closed-loop success went DOWN, not up
+
+- **Date:** 2026-11-01
+- **Training itself: the cleanest run of the whole project.** One single
+  continuous process attempt, zero crashes, 300,224 -> 450,752 steps.
+  `ep_rew_mean` over this stretch stayed flat/noisy (384-419, no climb)
+  -- a genuine plateau, not just a bad sample window.
+- **Real 45-trial evaluation: 26/45 (57.8%), DOWN from 64.4%.** TRAIN
+  objects 17/33 (51.5%, down from 57.6%), HOLDOUT 9/12 (75.0%, down from
+  83.3% but still comfortably above 70%). This answers the question
+  directly: **no, continuing to train alone did not move the needle
+  past 64.4% -- it went backward.**
+- **Per-object, vs. the 64.4% checkpoint:** 2 objects improved (`cube`
+  0/3->1/3, `cylindrical_prism` 1/3->2/3), 7 stayed the same
+  (`rectangular_prism`, `flat_disk`, `l_block`, `cone`, `rod`,
+  `plus_cross`, `square_pyramid`, `triangular_prism` -- `rectangular_prism`
+  and `flat_disk` both STILL 0/3, confirming these two in particular are
+  not a training-duration problem), and 6 got worse (`sphere` 3/3->1/3,
+  `capsule` 3/3->2/3, `ellipsoid` 3/3->1/3, `dumbbell` 3/3->2/3,
+  `hexagonal_prism` 2/3->1/3). The objects that regressed were mostly
+  ones that were previously PERFECT, not the known-problem objects --
+  consistent with ordinary PPO training drift/variance (a policy that's
+  already converged can wander to a different, not-strictly-better
+  local behavior with more gradient steps) rather than a sign that
+  training itself is harmful. A single 45-trial eval per checkpoint
+  also carries real sampling noise, same caveat this project has
+  already established for the TCN's own run-to-run variance -- this
+  is one data point, not a seeded multi-run average.
+- **Decision, per the pre-agreed branch:** this counts as "doesn't
+  meaningfully help" -- moving to designing a targeted, geometry-aware
+  fix for the two formation-drop mechanisms, NOT implementing or
+  retraining yet. `Data/ppo_slip_policy_latest.zip` (64.4%) remains the
+  reference result; `ppo_slip_policy_continued.zip` (57.8%) is kept on
+  disk for the record only, not used going forward.
+
+## PROPOSED (not implemented) -- a geometry-aware, self-conditioning fix for the two formation-drop mechanisms
+
+- **Date:** 2026-11-01. Proposal only, per instructions -- no code
+  changed, no training run. Written up for review before spending
+  hours on another full retrain, given yesterday's blanket-term
+  regression (64.4%->44.4%) was exactly the mistake this is designed
+  to avoid repeating.
+- **Why not another universal reward term:** `MIN_FINGER_FRACTION_COEF`
+  applied the SAME pressure to every object every step regardless of
+  whether that object needed it, and it measurably hurt several
+  objects that were already fine (`capsule`, `rod`, `plus_cross`,
+  `triangular_prism`). Both ideas below are designed to be
+  **self-conditioning** -- structurally near-zero effect on objects
+  that don't exhibit the problem, by construction, not by hand-picking
+  which objects they apply to.
+- **Part A -- give the policy ONE new, legitimate piece of
+  information: the object's own `char_length`.** Currently the RL
+  observation has zero geometry/identity signal -- the policy only
+  ever learns about object shape reactively, through the tactile
+  pattern AFTER contact starts. Adding the object's `char_length`
+  (already computed in `self.obj_spec`, a static scalar, not a leaked
+  dynamic/positional quantity) as one more observation value is
+  comparable to a real deployed system using vision for rough object
+  sizing before a tactile-only grasp -- not the same kind of leakage as
+  raw position/velocity, which is why `LEAKAGE_FEATURES` excludes those
+  specifically. This gives the policy an actual BASIS to learn
+  different formation strategies for different-sized/shaped objects,
+  rather than the one global strategy it currently has (observed
+  directly: 3-finger convergence, same for every object, confirmed via
+  `diagnostic_formation_drop_detailed.py`).
+- **Part B -- two small, narrowly-targeted reward terms, each matched
+  to ONE specific sub-pattern, each naturally zero for objects that
+  don't exhibit it:**
+  - **For the `rectangular_prism`/`l_block` violent-instability
+    pattern:** penalize a SUDDEN DROP in `contact_frac` step-to-step
+    during formation (e.g. `max(0, contact_frac[t-1] - contact_frac[t])`,
+    scaled by some coefficient) rather than penalizing low contact_frac
+    in general. For `sphere`/`cone`/most objects, `contact_frac` never
+    drops sharply once contact is made (confirmed in the detailed
+    trace data -- steady or slowly-changing touch values throughout),
+    so this term would sit at ~0 for them the whole episode. For
+    `rectangular_prism`/`l_block`, it would fire specifically at the
+    moment multiple fingers simultaneously lose contact (exactly the
+    event already identified), directly discouraging the instability
+    rather than generically pushing for more engagement everywhere.
+  - **For the `cube`/`flat_disk` late-4th-finger slow-sag pattern:**
+    reward REDUCING the spread of first-contact timing across fingers
+    that do engage, rather than rewarding raw engagement count. Concretely,
+    something like a small penalty on the variance/range of "steps since
+    first contact" across currently-touching fingers. For objects where
+    all engaging fingers already arrive within a tight window (`sphere`,
+    `cone`: confirmed 10-15 step spread), this is already near its best
+    value, so the term stays small. For `cube`/`flat_disk` (confirmed
+    70-95 step spread), it would directly penalize the late-arrival
+    pattern instead of just encouraging the 4th finger to engage at all
+    (which is what the failed fix did, indiscriminately, everywhere).
+- **Honest risks, stated up front:** (1) Part A requires an
+  observation-space shape change, meaning full retraining from scratch
+  either way -- same cost as Part B alone, so bundling them doesn't add
+  retraining cost, but does add a second variable to a single
+  experiment, making it harder to attribute credit if the result
+  improves. (2) Both Part B terms are still guesses about mechanism,
+  not proven fixes -- yesterday's lesson is that a term matching the
+  diagnosed mechanism can still fail to help or actively hurt once
+  trained; magnitude tuning via `smoke_test_rl_env.py` and a short
+  continuation sanity check (same discipline as before) would still be
+  required before committing to a full retrain. (3) Neither part
+  addresses `cube`'s observed 1/3 variability or guarantees
+  `rectangular_prism` specifically improves -- these are reasoned,
+  targeted hypotheses, not verified fixes.
+- **Recommended order if this is approved:** implement Part A alone
+  first (observation change only, reward unchanged) and test via the
+  same short continuation-style check, since it's the simpler,
+  single-variable change and isolates whether just having geometry
+  information changes behavior at all before adding Part B's two new
+  reward terms on top. Not started -- awaiting a decision.
+
+## Part A implemented (char_length observation) -- SEVERE regression, worse than Part B's attempt
+
+- **Date:** 2026-11-01
+- **Implementation:** exactly as proposed -- `char_length` (a static,
+  per-episode scalar from `self.obj_spec`, not a leaked dynamic
+  quantity) appended once to the end of the flattened observation
+  (`observation_space` 115 -> 116 dims). Reward completely unchanged.
+  Verified via direct inspection before training: shape correct (116),
+  values correct and object-specific (`cube`=0.0400,
+  `rectangular_prism`=0.0700, `rod`=0.0900, matching `OBJECT_LIBRARY`
+  exactly). `smoke_test_rl_env.py` reward output was numerically
+  IDENTICAL to the pre-Part-A baseline (12.66/185.33/22.70),
+  confirming the reward path itself was untouched.
+- **Sanity check passed:** short fresh-PPO run (25,600 steps), zero
+  crashes, `ep_rew_mean` climbed cleanly (31.6 -> 116) -- a completely
+  normal-looking early training curve, no red flags visible at this
+  scale.
+- **Full retrain: the cleanest run of the entire project** -- one
+  single continuous process attempt, zero crashes, 0 -> 300,032 steps
+  with no restarts needed at all.
+- **Real 45-trial evaluation: 11/45 (24.4%) -- a SEVERE regression,
+  worse even than Part B's 44.4% regression yesterday.** TRAIN 9/33
+  (27.3%), HOLDOUT 2/12 (16.7%). Most strikingly, **`sphere` and `cone`
+  -- the two most reliably perfect objects in the entire project,
+  100% across every prior policy -- now fail completely (0/3 each)**,
+  along with `rod` (also previously 3/3, now 0/3) and
+  `triangular_prism`/`hexagonal_prism` (previously 3/3 and 2/3, now
+  0/3 each). This is not a targeted improvement with isolated
+  collateral damage (Part B's pattern) -- it's a broad collapse that
+  hit the EASIEST objects hardest.
+- **On the actual target objects, a small but real mixed signal:**
+  `rectangular_prism` improved (0/3 -> 1/3), `l_block` improved
+  (1/3 -> 2/3), but `cube` and `flat_disk` are both still 0/3. So
+  2 of the 4 specifically-targeted objects did move in the right
+  direction -- but this signal is completely swamped by the
+  across-the-board collapse elsewhere.
+- **Honest interpretation:** adding `char_length` to the observation,
+  even though implemented exactly as designed with no reward change,
+  measurably destabilized what the policy learned overall -- worse
+  than doing nothing (64.4%) and worse than the blanket reward-term
+  mistake (44.4%). Plausible explanations, none confirmed: (1) genuine
+  single-seed training variance -- this is one run, and this project
+  has already demonstrated large run-to-run swings elsewhere (the TCN's
+  own 0.69-0.80 F1 spread); (2) the raw, unnormalized `char_length`
+  scale (0.04-0.09) sitting awkwardly alongside very differently-scaled
+  existing observation values (touch magnitudes in the tens, pull_force
+  in Newtons, probabilities in [0,1]) may have disrupted early
+  optimization in a way that a normalized version wouldn't; (3) giving
+  the network ANY object-identity signal, even a single static scalar,
+  may have encouraged a more object-SPECIFIC (and less robust/general)
+  strategy that happened to land badly this run.
+- **Decision point:** this result argues against Part B (the two
+  additional reward terms) being layered on top of Part A as originally
+  planned, since Part A alone already regressed badly -- stacking
+  Part B on a destabilized base is unlikely to isolate anything
+  cleanly. `Data/ppo_slip_policy_latest.zip` (64.4%) remains the
+  reference result. Both `ppo_slip_policy_continued.zip` (57.8%,
+  continued training) and `ppo_slip_policy_partA.zip` (24.4%, char_length
+  observation) are now ruled out as improvements -- every attempt to
+  improve on 64.4% this week has made things worse, which is itself a
+  real, reportable pattern worth weighing before trying a fourth
+  approach.
+
+## Seed-variance check -- reverted to the exact 64.4% config, running a second from-scratch training with nothing changed
+
+- **Date:** 2026-11-01
+- **Why:** three independent "improvement" attempts this week
+  (continued training, the finger-fix reward term, the char_length
+  observation) all made the real evaluation number worse than 64.4%.
+  Before concluding anything about those attempts specifically, the
+  more basic question needs answering: is 64.4% itself a reliable
+  number, or does THIS pipeline (with no explicit seeding anywhere,
+  same as the rest of the project) swing meaningfully run to run even
+  with nothing changed? A second from-scratch run isolates pure
+  training variance -- no new code, no new reward, no new observation.
+- **Revert confirmed exact, not just intended:** restored
+  `Synthetic data creation/Simulation/rl_env.py` to commit `02c867f`
+  (the last commit before the finger-fix work and the only commit
+  containing the version actually used for the 64.4% training run) via
+  `git checkout 02c867f -- rl_env.py`, rather than hand-reverting
+  individual edits -- eliminates any risk of a manual revert missing
+  something. Confirmed via direct inspection: zero occurrences of
+  `MIN_FINGER_FRACTION_COEF`/`char_length`-as-observation in the
+  restored file (the pre-existing, UNRELATED `0.15*char_length`
+  slip-threshold computation is untouched, as it should be --
+  that's original code, not part of either experiment). Confirmed via
+  execution, not just code inspection: `observation_space` back to
+  115-dim (not 116), and `smoke_test_rl_env.py`'s reward output is
+  EXACTLY identical to the original pre-any-fix baseline
+  (12.66/185.33/22.70, same 3 seeds) -- not just similar, identical to
+  several decimal places, confirming byte-for-byte config parity.
+  `train_rl_policy.py`'s own unrelated infrastructure fixes from this
+  week (the `--checkpoint-freq` rename, `EvalCallback` removal) were
+  deliberately NOT reverted -- those were bug fixes made for the SIGSEGV
+  investigation, not part of either experiment, and reverting them
+  would reintroduce an already-diagnosed crash risk for no reason.
+- **Next: full 300k-step fresh training run, same self-healing
+  orchestrator, zero code changes from this exact config** -- see the
+  next entry for the result.
+
+## Two real bugs found in the "revert" above -- fixed properly, and a full retroactive audit of this week's numbers
+
+- **Date:** 2026-11-01
+- **Bug 1, the serious one:** reverting to commit `02c867f` didn't just
+  undo the char_length/finger-fix changes -- it ALSO deleted
+  `reset()`'s `options={"object_name", "scene_seed"}` forced-override
+  handling, because that feature was added in a LATER commit (`9ddc2fc`)
+  bundled together with the finger-fix work, even though it's
+  completely unrelated (it exists so `evaluate_rl_policy.py` and the
+  diagnostic scripts can force a specific, reproducible (object, seed)
+  pair for the 15x3 benchmark). Without it, `reset()` silently falls
+  back to `self._episode_rng.choice(...)` -- a random draw -- with NO
+  error and no visible signal anything was wrong. Caught by an
+  independent review before any evaluation ran against the affected
+  policy.
+- **Bug 2, sloppier revert than decided:** checking out `02c867f`
+  deleted the entire `MIN_FINGER_FRACTION_COEF` code path (constant,
+  docstring, and its use in the reward sum), when the actual decision
+  on record (the "Continuing to train the 64.4% checkpoint" entry
+  above) was to set it to **0.0 while keeping the code intact** --
+  letting a future experiment reuse it without re-deriving it.
+- **Both fixed properly:** restored `rl_env.py` from commit `9ddc2fc`
+  instead (has BOTH the options-forcing AND the finger-fix code path,
+  with `MIN_FINGER_FRACTION_COEF` still at its escalated 3.0 at that
+  commit), then set the coefficient to **0.0 via a single targeted
+  edit** -- code path, docstring, and comments all intact, exactly
+  matching what was actually decided.
+- **Re-verified, now that both pieces are correct:** `smoke_test_rl_env.py`
+  reward output still exactly matches the original baseline
+  (12.66/185.33/22.70, same 3 seeds) -- confirming the reward function
+  is still byte-identical despite restoring from a different commit.
+  Separately, directly exercised `reset(options={"object_name":...,
+  "scene_seed":...})` for 3 different forced (object, seed) pairs and
+  confirmed each one is honored exactly (`info` matches the request
+  every time) -- not just code-inspected, actually run.
+- **Did the seed-variance retrain's evaluation already run with the
+  broken `reset()`? No** -- checked before doing anything else: no
+  `ppo_slip_policy_seedcheck.zip` existed yet (training was still in
+  progress), so nothing from THIS experiment needs to be invalidated
+  or re-run. The eventual evaluation will run with the fix in place
+  (training itself is unaffected either way -- it never passes
+  `options`, only evaluation/diagnostic scripts do).
+- **Retroactive audit: did this same gap affect ANY of this week's
+  other evaluated numbers (44.4%, 24.4%, 57.8%, or the original
+  64.4%)? Checked directly against the actual stored per-trial output
+  of each, not assumed.** All four evaluations' per-trial logs show
+  the objects appearing in the EXACT systematic sweep order
+  (`cube` seed=0,1,2 -> `sphere` seed=0,1,2 -> `cone` seed=0,1,2 ->
+  `rectangular_prism` seed=0,1,2 -> ...,  matching `OBJECT_LIBRARY`'s
+  order precisely) in every single one. If `options` had been silently
+  ignored in any of these runs, `self._episode_rng.choice(...)` would
+  have produced a effectively-random object sequence instead --
+  getting all 45 trials to land in this exact deterministic order by
+  chance is not plausible. **All four numbers (64.4%, 57.8%, 44.4%,
+  24.4%) are confirmed unaffected -- the broken `reset()` existed only
+  in this one seed-variance-check attempt, caught before it was ever
+  evaluated.** Reported plainly either way, per instructions: this
+  audit did not find a wider problem, but it was a real, worthwhile
+  check given the actual bug found, not a check performed to produce a
+  reassuring answer.
+- **Next: the seed-variance retrain (still in progress, confirmed
+  unaffected by either bug) continues; evaluation will run with both
+  fixes in place once training completes.**
+
+## Why are we plateaued at 64.4%, and why did three different single-change attempts all regress it? Research + audit, not a new fix attempt
+
+- **Date:** 2026-11-01
+- **Scope note:** this is diagnosis only, per instructions -- nothing
+  in this entry was implemented or trained. One candidate fix is
+  proposed at the end, explicitly not yet acted on.
+
+**Part 2 first (audit of our own setup), since it produced a concrete, checkable number the literature search then gets compared against.**
+
+- **No reward or observation normalization anywhere in this project
+  (re-confirmed by grep, not assumed):** `grep -n "VecNormalize\|normalize"`
+  across `train_rl_policy.py` and `rl_env.py` returns nothing. The
+  only clipping in `rl_env.py` is on the action (`MAX_DELTA_PER_STEP`),
+  not on reward or observation. PPO is constructed with only
+  `n_steps=256, batch_size=256, learning_rate=3e-4` explicitly set --
+  every other PPO hyperparameter (`gamma=0.99, gae_lambda=0.95,
+  clip_range=0.2, ent_coef=0.0, n_epochs=10, vf_coef=0.5,
+  max_grad_norm=0.5`) is left at SB3's library default.
+- **Real per-object training-data budget, computed from actual logged
+  `ep_len_mean` values (not estimated):** across the fresh-retrain and
+  seed-check logs, `ep_len_mean` sits in the 285-335 range for most of
+  a run (occasionally higher early on, e.g. mid-320s). Taking ~300-310
+  as representative: `total_episodes ~= total_timesteps / ep_len_mean
+  = 300,000 / ~305 ~= 980`. SB3's `num_timesteps` already sums across
+  all 4 parallel envs, so that ~980 is the TOTAL episode count for the
+  entire 300k-step run, not per-env. There are **11 train objects**
+  (`cube, rectangular_prism, capsule, ellipsoid, flat_disk, rod,
+  l_block, dumbbell, square_pyramid, triangular_prism, hexagonal_prism`
+  -- confirmed from the actual `"Train objects (11): [...]"` log line),
+  drawn **uniformly at random every reset**, no curriculum, no
+  weighting. That's **~89 episodes per object across the ENTIRE 300k-step
+  run** -- noticeably smaller than the ~150-200/object rough guess from
+  before this audit ran.
+
+**Part 1 (web research), used to judge whether the Part 2 numbers above are actually a problem:**
+
+- **Published closed-loop sim-trained grasp success rates span an
+  enormous range (27% to 95%) depending entirely on setup, budget, and
+  object set** -- so 64.4% is not obviously low in isolation; it sits
+  inside the normal range, not outside it. The high end (DemoGrasp,
+  ~95% on DexGraspNet; "From Power to Precision," 82.5% zero-shot) comes
+  from setups with far larger training budgets and/or large-scale
+  pretraining, not comparable to our single 300k-step run on 11
+  objects. [DemoGrasp](https://paperswithcode.co/paper/2509.22149),
+  [From Power to Precision](https://arxiv.org/html/2511.13710)
+- **A directly relevant data point: a fixed-randomization grasping
+  baseline (no curriculum) plateaued around 50% success, versus >70%
+  with an adaptive curriculum, after 500,000 steps** -- a LARGER step
+  budget than our 300k, with a baseline that still plateaus in the
+  same ballpark we're seeing, specifically BECAUSE it lacked curriculum
+  weighting. Our setup (uniform random object choice, no curriculum,
+  no adaptive weighting, fewer steps) matches the weaker condition in
+  that comparison, not the stronger one. [Adaptive Curriculum Domain
+  Randomization](https://communities.springernature.com/posts/adaptive-curriculum-domain-randomization-for-robotic-grasping-a-performance-driven-approach)
+- **VecNormalize (observation AND reward/return normalization, plus
+  clipping) is ON by default in SB3's own RL Baselines3 Zoo for
+  continuous-control tasks precisely because raw PPO is known to be
+  fragile to reward scale** -- it standardizes observations using
+  running mean/variance, and divides reward by the running std of the
+  discounted return (clipped at +/-10.0 by default). [SB3 VecNormalize
+  source](https://stable-baselines3.readthedocs.io/en/master/_modules/stable_baselines3/common/vec_env/vec_normalize.html)
+- **Our reward function mixes terms of very different raw magnitudes
+  with no normalization to absorb that**: `ALPHA_DISPLACEMENT=50.0`
+  (times displacement), `SLIP_PENALTY=20.0`, `HOLD_BONUS=20.0`,
+  `DROP_PENALTY=15.0`, `GRIP_FORCE_COEF=0.15` (times force, capped at
+  2x), `EFFORT_COEF=0.02` (times mean |action|) -- a decade-plus span
+  between the smallest and largest coefficients, summed directly into
+  the critic's target with no return-scale normalization in between.
+  This is consistent with, though does not single-handedly explain,
+  why adding or escalating a reward term (`MIN_FINGER_FRACTION_COEF`
+  0.5->3.0, accumulated every substep) destabilized the policy rather
+  than cleanly layering on top of the existing incentive structure --
+  a known PPO failure mode when reward scale shifts and nothing
+  renormalizes the value function's targets in response.
+- **This does NOT fully explain all three regressions by itself**:
+  the continued-training result (57.8%, no reward or observation
+  change at all) still regressed below 64.4% with more steps alone.
+  That one points at a second, complementary mechanism rather than
+  reward-scale shock: our rollout buffer is small (`n_steps=256` vs.
+  SB3's own default of 2048, an 8x difference) and `batch_size=256`
+  equals `n_steps`, meaning each update already uses the full,
+  small, 1024-transition (256 x 4 envs) buffer as one epoch's worth of
+  minibatches, repeated for `n_epochs=10` (default, not overridden).
+  Small buffer + many epochs over it + no advantage/return
+  normalization is a documented recipe for noisy, non-monotonic policy
+  quality over continued training -- i.e., the kind of result where
+  training longer isn't guaranteed to be better, which is exactly what
+  the continued-training experiment found.
+
+**Honest synthesis:** two complementary, literature-grounded candidate
+explanations, not one silver bullet: (1) missing reward/observation
+normalization, which plausibly explains why reward- and
+observation-altering changes destabilized training, and (2) a small
+rollout buffer combined with limited per-object sample diversity
+(~89 episodes/object, no curriculum) under a uniform-random object
+curriculum, which plausibly explains both the 64.4% ceiling itself and
+why continued training alone didn't help. Neither is proven --
+both are supported by independent literature and by our own grepped
+numbers, not by assumption.
+
+**Proposed candidate fix -- NOT IMPLEMENTED, pending a decision:**
+add `VecNormalize` (SB3's own wrapper, restoring its documented
+default behavior rather than inventing a new mechanism) around the
+training `SubprocVecEnv`, with its stats saved alongside the policy
+checkpoint and loaded for evaluation (reward normalization OFF, as
+the Zoo does, when evaluating -- only observation normalization
+carries over). This is additive and reward-structure-preserving (no
+reward term changes), which is a meaningfully different kind of
+change than the three attempts that already regressed performance,
+all of which touched the reward or observation CONTENT rather than
+its scale. Not started -- reporting first, per instructions.
+
+## VecNormalize implemented; a self-caused crash cascade on the seed-check retrain while testing it
+
+- **Date:** 2026-11-01
+- **Approved and sequenced:** finish and evaluate the seed-variance
+  retrain first (stands on its own), then implement/test VecNormalize
+  as a fresh-from-scratch 300k run (normalization stats accumulate
+  over a run, so a continuation would start them from a biased point --
+  same reasoning as every other structural change this week), with
+  evaluation using VecNormalize's own matched stats, not raw
+  observations.
+- **Implemented in `train_rl_policy.py`:** training env is now
+  `SubprocVecEnv` wrapped in `VecNormalize(norm_obs=True,
+  norm_reward=True, clip_obs=10.0, clip_reward=10.0, gamma=0.99)` on a
+  fresh run. `CheckpointCallback(save_vecnormalize=True)` now saves
+  `ppo_slip_ckpt_vecnormalize_<N>_steps.pkl` next to every
+  `ppo_slip_ckpt_<N>_steps.zip`. `--resume-from` now derives the
+  matching vecnormalize path from the checkpoint path and **raises
+  `FileNotFoundError` instead of silently restarting stats from
+  scratch** if that file is missing -- getting this wrong mid-segmented-run
+  would silently corrupt the comparison with no visible symptom, so
+  it's a hard stop, not a fallback. Final policy save also writes
+  `<save-path>_vecnormalize.pkl`.
+- **Implemented in `evaluate_rl_policy.py`:** new `--vecnormalize`
+  flag loads the saved stats via `VecNormalize.load(path,
+  DummyVecEnv([lambda: env]))` (the `DummyVecEnv` exists only to
+  satisfy `VecNormalize`'s shape check at load time -- it is never
+  stepped; the real single-env, options-forcing eval loop is
+  unchanged) and calls `.normalize_obs(obs)` directly on each raw
+  observation before `model.predict()`. `normalize_obs()` is
+  documented to not update statistics, so this is safe to call
+  per-trial with no state leaking between trials. Reward
+  normalization is irrelevant here since `held_securely()` reads
+  `info`, never the reward value, so it's intentionally left untouched.
+  Backward-compatible: omitting `--vecnormalize` evaluates exactly as
+  before, for policies (like the 64.4% checkpoint) trained without it.
+- **New orchestrator** `Data/_run_vecnorm_retrain.sh`, same self-healing
+  segmented-resume pattern as every other run this week, separate
+  `rl_logs_vecnorm/` / `ppo_slip_policy_vecnorm` paths to avoid
+  cross-contaminating checkpoints with other experiments.
+- **Before launching the real 300k run, ran a cheap smoke test (tiny
+  n-envs=2, 1024 steps) to check the wiring -- and it crashed
+  (`EOFError` from a `SubprocVecEnv` worker, zero diagnostic output,
+  meaning the worker died before even reaching `make_env`'s first
+  line).** Checked the seed-variance retrain immediately after and
+  found real damage: it had been cleanly running its ORIGINAL attempt 1
+  all the way from 0 to 155,000 steps (over halfway) when it hit a
+  first, ordinary crash of the kind already characterized this week
+  (MuJoCo's per-call allocation failure) -- unrelated to me. But every
+  resume attempt immediately after that (attempts 2 through 6, all
+  within the exact window my smoke test was running) failed instantly
+  with **zero steps of progress each**, which tripped
+  `MAX_CONSECUTIVE_NO_PROGRESS=5` and halted the orchestrator entirely
+  (`STOPPING`, exit 1) at 155,000/300,000 steps.
+- **Root cause: my own mistake, not a new environment bug.** The
+  smoke test's 2 workers and the seed-check retrain's 4 workers were
+  two SEPARATE `train_rl_policy.py` processes running at the same
+  time, each with its own independent `build_lock` (created fresh per
+  process via `mp.get_context("spawn").Lock()`) -- the lock only
+  coordinates MuJoCo model-compiles WITHIN one process's workers, not
+  across two separate script invocations. Running both at once put 6
+  total concurrent MuJoCo-compiling workers on the machine with zero
+  cross-process coordination between them, reproducing the same kind
+  of resource contention already documented this week (the "n-envs=6
+  died" diagnostic). This directly violates the standing
+  resource-capped-runs constraint, and I should not have started a
+  second heavy MuJoCo process while a production run was active --
+  caught and owned immediately, not discovered later.
+- **Recovery, attempt 1: confirmed no orphaned `python.exe` processes
+  remained (`Get-CimInstance Win32_Process`, empty result) before
+  restarting; relaunched `_run_seedcheck_retrain.sh` fresh, now with
+  nothing else running concurrently -- and it crashed again,
+  identically, 0 progress every attempt, same `STOPPING` halt.** With
+  no concurrent process this time, resource contention is ruled out --
+  there was a second, more direct bug.
+- **Real root cause, found by actually reading the attempt log instead
+  of re-running blindly a 3rd time (per standing instruction): I had
+  edited `train_rl_policy.py` -- a script this already-running
+  production experiment depends on -- WHILE it was still active.** The
+  new `--resume-from` logic unconditionally required a matching
+  `ppo_slip_ckpt_vecnormalize_<N>_steps.pkl` sidecar file next to the
+  checkpoint, and raised `FileNotFoundError` if it was missing. The
+  seed-check experiment predates VecNormalize entirely and has no such
+  files anywhere -- every resume attempt was hitting that new
+  exception directly (confirmed from `_seedcheck_attempt_6.log`'s own
+  traceback), not crashing in MuJoCo/SubprocVecEnv at all. The earlier
+  "resource contention" explanation above was wrong, or at best only
+  explained the ORIGINAL unrelated crash at 155,000 -- it did not
+  explain why EVERY subsequent resume failed identically with zero
+  diagnostic worker output, which in hindsight was the exception firing
+  before any worker-related code ran.
+- **This is a more serious mistake than the first explanation
+  suggested: editing a shared, in-use script while a real run depends
+  on it, not just a resource/timing collision.** Fixed properly rather
+  than reverting the VecNormalize work: `train_rl_policy.py` now checks
+  whether the checkpoint's own log-dir contains ANY
+  `*_vecnormalize_*_steps.pkl` file at all. If none exist anywhere (a
+  legacy, pre-VecNormalize experiment like seed-check), it resumes
+  exactly as before -- no normalization wrapper, no error. Only a
+  log-dir that genuinely already has VecNormalize sidecar files
+  enforces the exact-match hard-stop. Also fixed two latent bugs the
+  same read-through caught before they could bite later: a duplicate
+  `print` referencing an undefined variable on the legacy path (would
+  have been a `NameError` at the very next print statement), and an
+  unconditional final `train_env.save(...)` that would have thrown
+  `AttributeError` at the very end of a successful legacy run (a plain
+  `SubprocVecEnv` has no `.save()` method) -- both guarded now.
+  Confirmed with `python -m py_compile` before touching the real run
+  again.
+- **Recovery, attempt 2: relaunched `_run_seedcheck_retrain.sh` a
+  third time with the fix in place, nothing else running concurrently.
+  Resumed from 155,000 without error this time** -- ran cleanly the
+  rest of the way to 300,000/300,000 steps (`ppo_slip_policy_seedcheck.zip`,
+  `num_timesteps=300408`), orchestrator exit 0. The VecNormalize smoke
+  test's original `EOFError` (fresh-run path, no `--resume-from`
+  involved, so not explained by this specific bug) is still an open
+  question, to be re-tested alone once the VecNormalize retrain itself
+  is launched.
+
+## Seed-variance check result: 35.6%, not close to 64.4% -- pure training-run variance is large
+
+- **Date:** 2026-11-02 (session resumed after a long rate-limit pause;
+  the eval had already completed during the gap)
+- **The actual number, reported plainly, not spun either direction:**
+  the real 45-trial eval against the completed seed-check checkpoint
+  (`ppo_slip_policy_seedcheck.zip`, 300,408 steps, zero code changes
+  from the exact 64.4% config -- confirmed `rl_env.py` byte-identical
+  reward output and correct `options`-forcing both re-verified
+  yesterday after the revert-bug fix) gives **16/45 held securely =
+  35.6%** (TRAIN objects: 12/33 = 36.4%, HOLDOUT: 4/12 = 33.3%). All 45
+  trials ran cleanly, same systematic sweep order, no failures.
+- **This is NOT close to 64.4%.** A ~29-percentage-point swing from
+  nothing but a different random seed (there is no explicit seeding
+  anywhere in this RL pipeline, confirmed earlier this week) is a
+  large amount of pure run-to-run variance for a single training run
+  to carry. Per-object, the pattern isn't "uniformly worse" either --
+  `cone` went 3/3 (same as perfect), several objects that held
+  securely before now fail completely (`cube` 0/3, `flat_disk` 0/3,
+  `l_block` 0/3, `plus_cross` 0/3, `triangular_prism` 0/3,
+  `cylindrical_prism` 0/3) -- a different policy, not a uniformly
+  weaker one.
+- **This honestly weakens, but does not erase, two of this week's
+  three "regression" conclusions.** With two data points now bounding
+  the variance band at roughly 35.6%-64.4% for an UNCHANGED config:
+  - The continued-training result (57.8%) sits BETWEEN those two
+    bounds. The earlier conclusion ("training longer alone made it
+    worse") is now considerably less certain -- 57.8% is fully
+    consistent with ordinary seed variance, not necessarily a real
+    effect of additional training.
+  - The finger-fix result (44.4%) also sits BETWEEN those two bounds,
+    for the same reason -- it, too, cannot be confidently distinguished
+    from ordinary seed noise with only one run each.
+  - The char_length result (24.4%) sits BELOW the lower bound (35.6%)
+    observed so far. This one still looks like a real effect beyond
+    what pure variance alone has shown -- though the size of that
+    "real" effect is now smaller than it first appeared (roughly an
+    11-point gap below the noise floor, not a 40-point gap below
+    64.4%), since 64.4% itself is now understood to be closer to the
+    lucky/high end of this pipeline's variance than a stable baseline.
+  - Reported honestly in both directions, per instructions: this does
+    NOT mean the reward/observation changes were fine after all --
+    char_length still looks like a real regression. It means two of
+    the three "regressions" are now ambiguous rather than confirmed,
+    purely because single-run comparisons without multiple seeds per
+    condition can't separate a real effect from this much inherent
+    noise. That's a genuine methodological gap in how this week's
+    comparisons were run, not a new result to act on by itself.
+- **What this means going into the VecNormalize experiment:** it's
+  still worth running (reducing variance IS literally its documented
+  purpose, independent of any single sample's optimism), but a single
+  VecNormalize run landing anywhere in roughly the 35-65% range cannot,
+  by itself, be confidently called better or worse than 64.4% either --
+  the same noise band applies. Interpreting that result honestly when
+  it lands means judging it against this ~29-point noise floor, not
+  against the single 64.4% number in isolation.
+
+## VecNormalize full 300k retrain launched -- smoke-tested alone first, resolved yesterday's open EOFError question
+
+- **Date:** 2026-11-02
+- **Before touching the real run, re-tested the fresh-run VecNormalize
+  path that crashed with `EOFError` yesterday -- this time completely
+  alone, nothing else running concurrently (confirmed via
+  `Get-CimInstance Win32_Process`, no stray python.exe).** Same tiny
+  smoke test (n-envs=2, 1024 steps): completed cleanly, both
+  `ppo_slip_ckpt_*_steps.zip` and the matching
+  `ppo_slip_ckpt_vecnormalize_*_steps.pkl` saved in lockstep as
+  expected. **This resolves yesterday's open question: the original
+  `EOFError` really was the resource contention from running a second
+  heavy MuJoCo process concurrently with the seed-check retrain, not a
+  bug in the VecNormalize wiring itself.**
+- **Also smoke-tested the resume path on this (genuinely
+  VecNormalize-using) log-dir**, extending from its 1020-step
+  checkpoint to 1536: correctly detected the log-dir uses VecNormalize,
+  loaded the matching stats (`"Resumed VecNormalize stats from
+  ...1020_steps.pkl"`), continued training without error.
+- **Also smoke-tested `evaluate_rl_policy.py --vecnormalize`** against
+  that same tiny (barely-trained) checkpoint -- all 15 trials ran
+  cleanly with normalized observations fed to `model.predict()`, 0%
+  held (expected and uninformative at ~2k training steps; the point
+  was confirming no exceptions anywhere in the pipeline, not the
+  success rate).
+- **All three integration points confirmed clean in isolation. Smoke
+  test artifacts deleted. Launched the real run:** `_run_vecnorm_retrain.sh`,
+  full 300k target, fresh from scratch, same self-healing segmented
+  auto-resume pattern as every other run this week, writing to
+  `Data/rl_logs_vecnorm/` / `Data/ppo_slip_policy_vecnorm` (kept
+  separate from every other experiment's paths). Being watched now,
+  alone, with nothing else running concurrently this time.
+
+## Four more fixes from independent code review (2026-11-02), all verified before touching the live run
+
+1. **Serious:** `--resume-from` the FINAL saved policy (e.g.
+   `ppo_slip_policy_vecnorm.zip`, not a mid-run `_steps.zip` -- the
+   exact workflow already used to continue-train the 64.4% checkpoint)
+   silently missed its VecNormalize sidecar (different naming: no
+   `_steps` suffix) and fell back to raw unnormalized training with
+   ZERO error. Fixed with a new `find_sidecar()` helper that checks
+   actual file existence against both naming shapes this project
+   produces, instead of re-deriving SB3's internal scheme by string
+   substitution (also addresses the "fragile if the scheme changes"
+   review point). Verified: resuming from a final-save path now finds
+   and loads the sidecar correctly (confirmed by its own print line).
+2. Moved both sidecar checks (VecNormalize + the new reward-config
+   check below) to BEFORE `SubprocVecEnv` is constructed, so a
+   missing/mismatched sidecar aborts immediately instead of after a
+   full worker-spawn + MuJoCo-compile cycle.
+3. (Addressed by the `find_sidecar()` rewrite above.)
+4. **Systemic:** generalized the VecNormalize-sidecar pattern to cover
+   EVERY reward constant, not just the one (`MIN_FINGER_FRACTION_COEF`)
+   that already bit us once. `rl_env.get_reward_config()` snapshots all
+   15 tunable constants; a new `RewardConfigCallback` saves it
+   alongside every checkpoint; `--resume-from` now hard-errors if the
+   checkpoint's recorded config doesn't match `rl_env.py`'s CURRENT
+   constants. Verified: deliberately mismatching
+   `MIN_FINGER_FRACTION_COEF` (0.0 recorded vs. 3.0 current) correctly
+   raised `ValueError` naming the exact mismatch before any training
+   resumed; reverted immediately after.
+- All four fixes verified with small, isolated smoke tests (not the
+  live run) before being left in place; `python -m py_compile` clean
+  on all three touched files. The live 300k VecNormalize run
+  (currently 110,000/300,000, unaffected throughout -- it was never
+  touched) will exercise these same resume-sidecar code paths the next
+  time it crashes and auto-resumes, same as it already has several
+  times this week.
+
+## New standing rule for tonight + a second independent review's 5 findings on the above
+
+- **Date:** 2026-11-02. User authorized working through the night with
+  one condition: every change touching a real training/eval run gets
+  an independent review (this project's `/code-review` skill at high
+  effort, or an equivalently careful self-review) BEFORE it's used,
+  not occasionally -- applied retroactively to tonight's VecNormalize
+  changes immediately.
+- **5 findings came back, triaged for real risk given how these
+  scripts are ACTUALLY used tonight, not worst-case generality:**
+  1. `find_sidecar()`'s glob fallback picks `matches[0]` with no
+     disambiguation if multiple same-step sidecars exist in one
+     directory. **Not fixed tonight** -- every orchestrator script
+     this project uses gives each experiment its own dedicated
+     `--log-dir`, so this can't actually occur under how these scripts
+     are run here. Noted as a real general-purpose limitation, not an
+     active risk.
+  2. A renamed checkpoint with no sibling sidecar silently resumes
+     unnormalized. **Not fixed tonight** -- no orchestrator script
+     here ever renames a checkpoint. Noted, not active.
+  3. The "any sidecar nearby" fallback scans the whole directory, so
+     two unrelated lineages sharing one log-dir could false-positive
+     an error. **Not fixed tonight** -- same reason as #1, dedicated
+     dirs per experiment.
+  4. **Fixed:** `evaluate_rl_policy.py` had no automatic check that
+     `--vecnormalize` was supplied when the policy needs it -- a
+     forgotten flag on the exact script that produces headline numbers
+     would silently evaluate with raw observations and print a
+     confidently wrong percentage. Now auto-detects the matching
+     sidecar next to `--policy` via the same `find_sidecar()` used for
+     training resume (still hard-errors if a sidecar exists nearby but
+     doesn't match). Verified with a fresh smoke-test checkpoint:
+     correctly printed `"Auto-detected VecNormalize sidecar: ..."` and
+     loaded it with no `--vecnormalize` flag passed.
+  5. The reward-config mismatch check only iterates keys present in
+     the OLD recorded JSON, so a reward constant added to
+     `_REWARD_CONFIG_KEYS` after a checkpoint was recorded would never
+     be checked on resume. **Not fixed tonight** -- no new reward
+     constants are being added under the current converge-only plan,
+     so this can't fire tonight either. Noted for whoever touches
+     reward constants again later.
+- **Rationale for fixing only #4 tonight:** the other four require
+  either a scenario that cannot occur given how this project's scripts
+  are actually invoked (dedicated per-experiment log-dirs, no renaming,
+  no new reward terms tonight), or a more involved design decision not
+  worth making under the Nov 4 clock. #4 was the one genuine, live risk
+  to tonight's actual headline numbers, so it's the one that got fixed
+  immediately. `python -m py_compile` clean on all three files
+
+## VecNormalize seed #1 result: 2.2% -- catastrophic, not just "no better." Verdict: VecNormalize is not the fix, stopping here
+
+- **Date:** 2026-11-02
+- **Result:** full 300k run completed cleanly (300,032 steps, zero
+  crashes this segment, both sidecars saved correctly, auto-detected
+  correctly by the just-fixed eval harness). The real 45-trial eval:
+  **1/45 held securely (2.2%)** -- TRAIN 1/33 (3.0%), HOLDOUT 0/12
+  (0.0%). Per-trial output: almost every trial is either
+  `dropped_during_formation=True` or `slipped=True` right at/past the
+  object's threshold; only `l_block` seed=1 held.
+- **Checked for a bug before accepting this as a real result** (per
+  tonight's review discipline) rather than assuming either way:
+  training's own internal metrics are textbook-healthy and show NO
+  sign of a training-process bug -- `explained_variance` 0.84-0.92
+  (value function fits well), `value_loss` low (0.07-0.18), `std`
+  stable at ~0.82 (not collapsed, not exploded), `approx_kl` normal
+  (0.01-0.02). `obs_rms`/`ret_rms` in the saved VecNormalize pickle
+  have no NaN/Inf and sane magnitudes. This was a cleanly CONVERGED
+  PPO run by every internal signal -- not a crash, not numerical
+  instability, not a wiring bug in the sidecar/auto-detect code
+  (separately verified earlier tonight).
+- **Likely real explanation, not a bug: reward/task misalignment,
+  probably made worse by return normalization.** `ep_rew_mean` climbed
+  steadily to 340-363 (far HIGHER than any other run this week) while
+  `ep_len_mean` also climbed to ~160-164 (longer than the ~100-130
+  typical elsewhere) -- consistent with the policy learning to
+  maximize ACCUMULATED PER-STEP formation-phase reward (contact +
+  grip-force terms) by staying in formation longer, rather than
+  reaching a secure terminal hold. Return normalization changes the
+  RELATIVE scale PPO's advantage calculation assigns to large one-time
+  terminal rewards (HOLD_BONUS, SLIP_PENALTY, the
+  ALPHA_DISPLACEMENT-scaled phase-2 term) versus small
+  repeated-every-step ones (CONTACT_COEF, GRIP_FORCE_COEF) -- a
+  plausible mechanism for why a policy that converges well by its own
+  reward signal can still get dramatically worse at the actual task.
+  This is a reward-design problem, not something VecNormalize itself
+  did wrong.
+- **Decision, given the Nov 4 clock: do NOT run a VecNormalize seed #2.**
+  A second seed could only ever confirm "wide spread" at this point --
+  even a lucky second run landing near 60% would still mean a 55+ point
+  spread, the same "not a fix" verdict either way, and chasing the
+  underlying reward-scale interaction would mean redesigning reward
+  normalization, which is explicitly off the table tonight (no new
+  fixes). One severe, cleanly-verified-as-not-a-bug result is enough to
+  answer the question VecNormalize was meant to answer.
+  **VecNormalize is ruled out as tonight's fix.**
+- **Pivoting per the pre-agreed decision tree's second branch:**
+  stopping all new-fix experimentation. Remaining seeds go toward an
+  honest mean +/- spread for the best-available NON-VecNormalize
+  config (the exact original reward/observation setup already run
+  twice: 64.4% and 35.6%, results.md "Seed-variance check result").
+  One more seed of that exact config next, for a 3-point mean +/- std --
+  plus the user-approved 1,000-trial evals (hand-tuned baseline first,
+  in this exact gap since nothing is training right now; the RL
+  policy's 1,000-trial eval last, once the 3-seed baseline number is
+  locked in).
+
+## Baseline (hand-tuned Model A) 1,000-trial eval: 58.6% -- meaningfully different from the 45-trial estimate of 40.0%
+
+- **Date:** 2026-11-02. `batch_closed_loop_trials.py`, identical
+  methodology to every prior Model A number (500/300 ramp/settle,
+  `squeeze_intensity=0.95`, `model_a.pt`, 22ch), just 67 trials/object
+  instead of 3 -- 1,005 total, 0 failures, 1969.5s (1.96s/trial).
+- **Result: 589/1005 held securely (58.6%)** -- mean
+  `max_slip_probability` 0.3968, mean `n_corrections` 26.19.
+- **This is NOT close to the 45-trial number (40.0%, 18/45) --
+  another real demonstration of how much a 3-seed/object sample can
+  mislead,** same lesson as the RL seed-variance finding, just for the
+  baseline this time. Per-object spread is huge and bimodal: several
+  objects near-perfect (`dumbbell` 67/67, `capsule` 67/67, `flat_disk`
+  65/67, `sphere` 59/67) and several near-total-failure
+  (`cylindrical_prism` 1/67, `cube` 14/67, `cone` 21/67) -- the 40.0%
+  45-trial estimate wasn't wrong due to a bug, it was just too small a
+  sample of a highly object-dependent success rate to land near the
+  true mean.
+- **Implication for the paper's numbers going forward: the 45-trial
+  numbers quoted earlier this week for every RL config (64.4%, 35.6%,
+  2.2%, etc.) should be assumed to carry similarly large sampling
+  uncertainty on top of the already-measured 29-point seed-to-seed
+  training variance** -- two separate, compounding sources of noise,
+  not one. Full 1,000-trial RL evaluation (planned next, once the
+  3-seed baseline mean is locked in) will matter even more than
+  expected for getting a trustworthy final number.
+
+## Caught before launching: --use-vecnormalize needed to be opt-in, not unconditional, or seed3 would have been silently corrupted
+
+- **Date:** 2026-11-02. While prepping seed3 (a third from-scratch run
+  under the ORIGINAL, non-VecNormalize config, for a 3-point mean+-std
+  against seed1/64.4% and seed2-seedcheck/35.6%), realized the current
+  `train_rl_policy.py` made VecNormalize UNCONDITIONAL for every fresh
+  (non-`--resume-from`) run -- there was no flag to turn it off. Seed3
+  would have silently trained under VecNormalize instead of the plain
+  config it's supposed to match, defeating the entire point of the
+  3-point comparison, with no error at all.
+- **Fixed before any run was launched:** added `--use-vecnormalize`
+  (default off/`store_true`). Every orchestrator script written
+  tonight (seed1, the unused seed2, production, seed-check) is
+  unaffected or was already specific about what it needed; seed3's
+  script never passes the flag, so it now correctly gets the plain,
+  unnormalized env. Verified with a tiny smoke test: a fresh run
+  without `--use-vecnormalize` now produces no `_vecnormalize.pkl`
+  sidecar at all (only the policy + reward-config sidecar), confirming
+  the plain path is taken. `python -m py_compile` clean. Seed3 launched
+  immediately after, full 300k target, same self-healing segmented
+  pattern.
+
+## Seed3 completed (300,032 steps, clean) -- but its eval hit the exact edge case flagged-but-deferred earlier tonight
+
+- **Date:** 2026-11-02. Evaluating seed3 immediately threw
+  `FileNotFoundError` from `find_sidecar()`: it found seed1's
+  `ppo_slip_policy_vecnorm_vecnormalize.pkl` while scanning for ANY
+  vecnormalize sidecar near seed3's checkpoint, and wrongly concluded
+  seed3 was missing its own. This is finding #3 from the earlier
+  independent review ("any_nearby fallback scans the ENTIRE resume
+  directory ... two unrelated lineages sharing one log-dir"),
+  deliberately left unfixed at the time with the reasoning "every
+  orchestrator gives each experiment its own `--log-dir`, so this
+  can't occur" -- true for PERIODIC checkpoints, but every
+  experiment's FINAL save (`model.save(args.save_path)`) lands
+  directly in the shared flat `Data/` folder, which that reasoning
+  missed. The deferral was wrong for this specific case.
+- **Fixed properly:** `find_sidecar()` now scopes both the `_N_steps`
+  match and the `any_nearby` fallback to the checkpoint's own lineage
+  prefix (the shared `name_prefix` for periodic checkpoints, or the
+  exact resume stem -- e.g. `ppo_slip_policy_seed3` -- for a final
+  save), not the whole directory. Verified directly: `find_sidecar` on
+  seed3's path now correctly returns `None`, while the same call on
+  seed1's VecNormalize path still correctly finds its real sidecar.
+  `python -m py_compile` clean. Re-running seed3's 45-trial eval now
+  with the fix in place.
+- **No corrupted number resulted** -- the bug was a hard crash, not a
+  silent wrong answer, so nothing needed to be thrown out.
+
+## Seed3 real result: 17.8% -- the 3-seed baseline mean+-std is now locked in, and it's nowhere near 70%
+
+- **Date:** 2026-11-02. Seed3's 45-trial eval: **8/45 held securely
+  (17.8%)** -- TRAIN 8/33 (24.2%), HOLDOUT 0/12 (0.0%).
+- **Three seeds of the exact same config, zero code changes, now in
+  hand: 64.4%, 35.6%, 17.8%.** Mean = **39.3%**, population std =
+  19.2 points, sample std (n-1) = 23.5 points, range 17.8-64.4 (a
+  46.6-point spread across 3 random seeds).
+- **Against the user's explicit "consistent 70%" bar from earlier
+  tonight: this does not clear it, not close.** The mean sits at
+  roughly half that target, and the spread is so large that ANY
+  single seed's result is a poor predictor of the next one. Per the
+  user's own pre-set stopping rule ("if nothing reaches 70%
+  consistently... report the honest best result with real mean+-spread
+  ... and stop"), this is that moment -- not a new judgment call, just
+  executing what was already agreed.
+- **This is the honest number for the paper's RL result:** a 3-seed
+  mean+-std (39.3% +/- ~20-24 points) for the current reward/env
+  design, not a single lucky point estimate. The 29-39-point run-to-run
+  spread is itself a legitimate, reportable finding -- it says this
+  training setup is highly seed-sensitive, which is real information
+  about the system, not noise to explain away.

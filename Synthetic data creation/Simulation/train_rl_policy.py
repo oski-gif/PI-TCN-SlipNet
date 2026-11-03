@@ -9,6 +9,43 @@ whether the learned policy generalizes to objects it never trained on,
 not just memorized the training set -- same discipline as the slip-
 detection model's own train/val/test split.
 
+VecNormalize (2026-11-01, results.md "Why are we plateaued at 64.4%"):
+wraps the training SubprocVecEnv to normalize observations and rewards
+using running mean/variance (SB3's own documented default for continuous
+control, which this project had never used -- confirmed absent via grep
+before adding it). Reward terms here span a >1000x raw magnitude range
+(EFFORT_COEF=0.02 to ALPHA_DISPLACEMENT=50.0) with nothing previously
+absorbing that scale; this is additive (restores a documented SB3
+default) rather than a change to reward/observation CONTENT, unlike the
+three experiments that already regressed performance this week. The
+running stats are saved alongside every CheckpointCallback save
+(save_vecnormalize=True) and reloaded on --resume-from via find_sidecar()
+below, so a segmented run (crash-and-resume, same as every other run
+this week) keeps one continuous set of statistics rather than restarting
+them each segment -- getting this wrong would silently corrupt the run.
+
+Reward-config guard (2026-11-02, results.md, independent code review):
+the SAME silent-corruption risk exists for every plain module-global
+reward constant in rl_env.py (MIN_FINGER_FRACTION_COEF already bit us
+once this way -- left at 3.0 while resuming a checkpoint trained at
+0.0). Generalized rather than special-cased: rl_env.get_reward_config()
+snapshots every tunable constant, RewardConfigCallback saves it
+alongside every checkpoint (same cadence as save_vecnormalize), and
+--resume-from hard-errors on any mismatch between the checkpoint's
+recorded config and rl_env.py's CURRENT constants, before any training
+resumes. Both this and the VecNormalize sidecar are located via
+find_sidecar() -- by checking actual file existence against both
+naming shapes this project produces, not by re-deriving SB3's internal
+checkpoint-naming scheme via string substitution (that approach missed
+the final-save naming shape entirely: resuming from the FINAL saved
+policy, e.g. ppo_slip_policy_vecnorm.zip -- exactly the workflow already
+used to continue-train the 64.4% checkpoint -- silently fell through to
+training on raw, unnormalized observations with no error at all; fixed
+by checking existence of both shapes instead of assuming one). Both
+checks run BEFORE SubprocVecEnv is constructed, so a missing/mismatched
+sidecar aborts immediately instead of after a full worker-spawn +
+MuJoCo-compile cycle.
+
 Usage (Windows needs the spawn-safe __main__ guard below for
 SubprocVecEnv -- this file must be run as a script, not imported):
     python train_rl_policy.py \\
@@ -28,8 +65,11 @@ SubprocVecEnv -- this file must be run as a script, not imported):
 """
 import argparse
 import faulthandler
+import glob
+import json
 import multiprocessing as mp
 import os
+import re
 import time
 
 # Must happen before torch is imported ANYWHERE in this process (including
@@ -43,12 +83,12 @@ import time
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
 
 import closed_loop_sim as cls
-from rl_env import SlipGraspEnv
+from rl_env import SlipGraspEnv, get_reward_config
 
 HOLDOUT_OBJECTS = ["cone", "cylindrical_prism", "plus_cross", "sphere"]
 
@@ -83,6 +123,94 @@ def make_env(args, object_names, episode_seed, build_lock, worker_idx):
     return _init
 
 
+def find_sidecar(resume_path, kind, extension):
+    """
+    Finds a sidecar file of the given `kind` (e.g. "vecnormalize",
+    "rewardconfig") matching a --resume-from checkpoint, by checking
+    actual file existence rather than re-deriving SB3's internal
+    checkpoint-naming scheme via string substitution (fragile if
+    name_prefix or that scheme ever changes -- bit us once already,
+    results.md). Handles both naming shapes this project produces:
+      - CheckpointCallback's periodic saves: "<prefix>_<N>_steps.zip"
+        paired with "<prefix>_<kind>_<N>_steps.<extension>"
+      - This script's own final save: "<save_path>.zip" paired with
+        "<save_path>_<kind>.<extension>"
+    Returns the sidecar path if found. Returns None if NO sidecar of
+    this kind exists anywhere in that directory -- a legacy checkpoint
+    saved before this kind of sidecar existed, not an error. Raises
+    FileNotFoundError if sidecars of this kind DO exist in that
+    directory but none match this specific checkpoint -- a real
+    mismatch, since silently proceeding without the matching one would
+    silently lose whatever guarantee that sidecar kind provides, with
+    no visible symptom.
+    """
+    resume_dir = os.path.dirname(resume_path)
+    resume_stem = os.path.splitext(os.path.basename(resume_path))[0]
+
+    candidate_final = os.path.join(resume_dir, f"{resume_stem}_{kind}.{extension}")
+    if os.path.exists(candidate_final):
+        return candidate_final
+
+    # Scoped to THIS checkpoint's own lineage prefix, not the whole
+    # directory -- every experiment's FINAL save lands directly in the
+    # same flat Data/ folder (unlike periodic checkpoints, which each
+    # get their own rl_logs_*/ subdirectory), so an unscoped glob here
+    # false-positives on a completely unrelated experiment's sidecar
+    # (hit this for real, 2026-11-02: seed3's lookup found seed1's
+    # ppo_slip_policy_vecnorm_vecnormalize.pkl and wrongly concluded
+    # seed3 was missing its own). For "<prefix>_<N>_steps", the lineage
+    # is <prefix> (e.g. "ppo_slip_ckpt", shared across experiments but
+    # already dir-isolated); for a final save, the lineage is the
+    # resume_stem itself (e.g. "ppo_slip_policy_seed3"), which IS
+    # unique per experiment even sharing one flat directory.
+    steps_match = re.match(r"^(.*)_(\d+)_steps$", resume_stem)
+    lineage_prefix = steps_match.group(1) if steps_match else resume_stem
+
+    if steps_match:
+        n = steps_match.group(2)
+        matches = glob.glob(os.path.join(resume_dir, f"{lineage_prefix}*{kind}*_{n}_steps.{extension}"))
+        if matches:
+            return matches[0]
+
+    any_nearby = glob.glob(os.path.join(resume_dir, f"{lineage_prefix}*{kind}*.{extension}"))
+    if any_nearby:
+        raise FileNotFoundError(
+            f"--resume-from {resume_path} has no matching '{kind}' sidecar for "
+            f"this specific checkpoint (checked {candidate_final!r} and a "
+            f"{lineage_prefix}*_<N>_steps match), but this SAME LINEAGE "
+            f"({lineage_prefix}) DOES have other '{kind}' files "
+            f"({any_nearby[:3]}) -- this experiment records '{kind}', so "
+            f"resuming without the exact matching one would silently lose "
+            f"that guarantee mid-run. Stopping instead.")
+    return None
+
+
+class RewardConfigCallback(BaseCallback):
+    """
+    Saves rl_env.get_reward_config()'s snapshot alongside every
+    CheckpointCallback save (same cadence, same N in the filename) so
+    --resume-from can hard-error if a reward constant (e.g.
+    MIN_FINGER_FRACTION_COEF) has changed since the checkpoint was
+    trained, instead of silently continuing training under a different
+    reward function than the checkpoint actually learned under (caught
+    the hard way once already -- results.md).
+    """
+    def __init__(self, save_freq, save_path, name_prefix, verbose=0):
+        super().__init__(verbose)
+        self.save_freq = save_freq
+        self.save_path = save_path
+        self.name_prefix = name_prefix
+
+    def _on_step(self):
+        if self.n_calls % self.save_freq == 0:
+            path = os.path.join(
+                self.save_path,
+                f"{self.name_prefix}_rewardconfig_{self.num_timesteps}_steps.json")
+            with open(path, "w") as f:
+                json.dump(get_reward_config(), f, indent=2)
+        return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     cls.add_common_args(ap, max_steps_default=1500)
@@ -112,6 +240,19 @@ def main():
                          "checkpoint's own restored num_timesteps, not parsed from "
                          "the filename, so this works even if a checkpoint is "
                          "renamed.")
+    ap.add_argument("--use-vecnormalize", action="store_true",
+                    help="Wrap training in SB3's VecNormalize (fresh runs only -- "
+                         "a --resume-from checkpoint's own sidecar presence decides "
+                         "for resumed runs, see find_sidecar()). Opt-in, default "
+                         "off, so every orchestrator script that predates or isn't "
+                         "deliberately testing VecNormalize (seed1, seed2/seedcheck, "
+                         "seed3, production) keeps training on plain, unnormalized "
+                         "observations -- the ORIGINAL baseline config these seeds "
+                         "are being compared against. 2026-11-02: this flag was "
+                         "added after catching, before launching seed3, that an "
+                         "earlier version of this script made VecNormalize "
+                         "unconditional for every fresh run, which would have "
+                         "silently broken seed3's apples-to-apples comparison.")
     args = ap.parse_args()
     args.squeeze_intensity = 0.95
 
@@ -121,6 +262,31 @@ def main():
     print(f"Holdout objects ({len(HOLDOUT_OBJECTS)}): {HOLDOUT_OBJECTS}")
 
     os.makedirs(args.log_dir, exist_ok=True)
+
+    # Resolve both sidecars (and hard-error on any mismatch) BEFORE paying
+    # for SubprocVecEnv's worker-spawn + MuJoCo-compile cost -- a
+    # missing/mismatched sidecar should abort immediately, not after a
+    # full worker-startup cycle.
+    vecnorm_sidecar = None
+    if args.resume_from:
+        vecnorm_sidecar = find_sidecar(args.resume_from, "vecnormalize", "pkl")
+
+        rewardconfig_sidecar = find_sidecar(args.resume_from, "rewardconfig", "json")
+        if rewardconfig_sidecar:
+            with open(rewardconfig_sidecar) as f:
+                recorded_config = json.load(f)
+            current_config = get_reward_config()
+            mismatches = {k: {"recorded": recorded_config[k], "current": current_config.get(k)}
+                          for k in recorded_config
+                          if recorded_config[k] != current_config.get(k)}
+            if mismatches:
+                raise ValueError(
+                    f"--resume-from {args.resume_from}'s recorded reward config "
+                    f"({rewardconfig_sidecar}) does not match rl_env.py's CURRENT "
+                    f"constants -- continuing would silently train this checkpoint "
+                    f"under a different reward function than it actually learned "
+                    f"under. Mismatches: {mismatches}")
+            print(f"Reward config matches recorded {rewardconfig_sidecar} -- OK.")
 
     # Shared across every worker process (spawn context, matching the one
     # SubprocVecEnv uses on Windows) so only one of them ever compiles a
@@ -144,12 +310,21 @@ def main():
     # process at all. CheckpointCallback (kept below) is the actual
     # progress safety net -- already proven reliable across every
     # incident so far, including both crashes above.
-    train_env = SubprocVecEnv(
+    raw_train_env = SubprocVecEnv(
         [make_env(args, train_objects, episode_seed=i, build_lock=build_lock,
                   worker_idx=i)
          for i in range(args.n_envs)])
 
     if args.resume_from:
+        # vecnorm_sidecar was already resolved (and any mismatch already
+        # hard-errored) above, before SubprocVecEnv was constructed.
+        if vecnorm_sidecar:
+            train_env = VecNormalize.load(vecnorm_sidecar, raw_train_env)
+            train_env.training = True
+            print(f"Resumed VecNormalize stats from {vecnorm_sidecar}.")
+        else:
+            train_env = raw_train_env
+
         # PPO.load() restores num_timesteps (and every original
         # hyperparameter -- n_steps/batch_size/learning_rate/etc) from the
         # checkpoint's own saved state, verified directly before wiring
@@ -166,6 +341,17 @@ def main():
             print("Already at or past --total-timesteps -- nothing to do.")
             return
     else:
+        if args.use_vecnormalize:
+            # norm_obs + norm_reward both on, gamma=0.99 matching PPO's own
+            # (left at SB3's default, confirmed via audit never overridden) --
+            # restores SB3's own documented default behavior for continuous
+            # control (see module docstring). Opt-in via --use-vecnormalize
+            # (see its help) -- NOT the default, so every other experiment
+            # keeps training on plain, unnormalized observations.
+            train_env = VecNormalize(raw_train_env, norm_obs=True, norm_reward=True,
+                                      clip_obs=10.0, clip_reward=10.0, gamma=0.99)
+        else:
+            train_env = raw_train_env
         model = PPO(
             "MlpPolicy", train_env, verbose=1,
             tensorboard_log=args.log_dir,
@@ -176,16 +362,27 @@ def main():
 
     checkpoint_cb = CheckpointCallback(
         save_freq=max(args.checkpoint_freq, 1), save_path=args.log_dir,
+        name_prefix="ppo_slip_ckpt", save_vecnormalize=True)
+    rewardconfig_cb = RewardConfigCallback(
+        save_freq=max(args.checkpoint_freq, 1), save_path=args.log_dir,
         name_prefix="ppo_slip_ckpt")
 
     # reset_num_timesteps=False on resume -- keeps counting up from the
     # loaded checkpoint's num_timesteps instead of restarting at 0, so
     # checkpoint filenames (which embed the model's absolute step count)
     # and the --total-timesteps budget both stay correct across segments.
-    model.learn(total_timesteps=remaining, callback=[checkpoint_cb],
+    model.learn(total_timesteps=remaining, callback=[checkpoint_cb, rewardconfig_cb],
                reset_num_timesteps=(args.resume_from is None))
     model.save(args.save_path)
     print(f"Saved final policy to {args.save_path}.zip ({model.num_timesteps} total steps)")
+    if isinstance(train_env, VecNormalize):
+        final_vecnorm_path = f"{args.save_path}_vecnormalize.pkl"
+        train_env.save(final_vecnorm_path)
+        print(f"Saved final VecNormalize stats to {final_vecnorm_path}")
+    final_rewardconfig_path = f"{args.save_path}_rewardconfig.json"
+    with open(final_rewardconfig_path, "w") as f:
+        json.dump(get_reward_config(), f, indent=2)
+    print(f"Saved final reward config to {final_rewardconfig_path}")
 
 
 if __name__ == "__main__":

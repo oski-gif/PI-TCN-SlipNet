@@ -198,7 +198,36 @@ DROP_THRESHOLD = 0.05  # meters fallen from spawn height counted as a drop
 DROP_PENALTY = 15.0
 GRIP_FORCE_COEF = 0.15  # see module docstring's GRIP_FORCE_COEF note
 GRIP_FORCE_CAP_MULTIPLE = 2.0  # saturate once grip exceeds 2x the object's own weight
-MIN_FINGER_FRACTION_COEF = 3.0  # see module docstring's MIN_FINGER_FRACTION_COEF note
+MIN_FINGER_FRACTION_COEF = 0.0  # DISABLED 2026-11-01 -- see module docstring. The
+# 3.0 version regressed overall closed-loop success 64.4%->44.4% (results.md,
+# "Full fresh retrain complete"). Set to 0.0 (not deleted) so continuing to
+# train the 64.4% checkpoint uses the EXACT reward function it was already
+# trained under -- the term's code path stays in place (zero contribution)
+# rather than being ripped out, so it's cheap to revisit with a different
+# value/design later without re-deriving it.
+
+_REWARD_CONFIG_KEYS = (
+    "ACTION_REPEAT", "OBS_WINDOW", "MAX_DELTA_PER_STEP", "ALPHA_DISPLACEMENT",
+    "EFFORT_COEF", "SLIP_PENALTY", "HOLD_BONUS", "CONTACT_TOUCH_THRESHOLD",
+    "CONTACT_COEF", "INSTABILITY_COEF", "DROP_THRESHOLD", "DROP_PENALTY",
+    "GRIP_FORCE_COEF", "GRIP_FORCE_CAP_MULTIPLE", "MIN_FINGER_FRACTION_COEF",
+)
+
+
+def get_reward_config():
+    """
+    Snapshot of every tunable reward/observation constant above, by name
+    -- read fresh from this module's globals each call, never cached.
+    train_rl_policy.py records this alongside every checkpoint and
+    hard-errors on resume if it's since changed, so a module-global left
+    at the wrong value (exactly what happened once already with
+    MIN_FINGER_FRACTION_COEF left at 3.0 before resuming the 64.4%
+    checkpoint trained at 0.0 -- see results.md) is caught immediately
+    instead of silently producing a checkpoint trained under two
+    different reward functions.
+    """
+    g = globals()
+    return {k: g[k] for k in _REWARD_CONFIG_KEYS}
 
 
 class SlipGraspEnv(gym.Env):

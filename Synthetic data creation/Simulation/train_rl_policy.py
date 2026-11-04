@@ -216,6 +216,10 @@ def main():
     cls.add_common_args(ap, max_steps_default=1500)
     ap.add_argument("--total-timesteps", type=int, default=300_000)
     ap.add_argument("--n-envs", type=int, default=6)
+    ap.add_argument("--n-steps", type=int, default=256,
+                    help="Rollout length per env, fresh runs only (a --resume-from "
+                         "checkpoint keeps its own). 256 is the baseline; a held "
+                         "trial lasts up to 460 env steps.")
     ap.add_argument("--save-path", default="ppo_slip_policy")
     ap.add_argument("--log-dir", default="rl_logs")
     ap.add_argument("--checkpoint-freq", type=int, default=10_000,
@@ -355,7 +359,7 @@ def main():
             "MlpPolicy", train_env, verbose=1,
             tensorboard_log=args.log_dir,
             device="cpu",  # small MLP on a 105-dim obs -- CPU avoids GPU contention with the 6-8 subprocess TCN inferences
-            n_steps=256, batch_size=256, learning_rate=3e-4,
+            n_steps=args.n_steps, batch_size=256, learning_rate=3e-4,
         )
         remaining = args.total_timesteps
 

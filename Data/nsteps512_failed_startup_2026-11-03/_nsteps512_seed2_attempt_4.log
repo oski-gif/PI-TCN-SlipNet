@@ -1,0 +1,83 @@
+QH6080 qhull error (qh_memalloc): insufficient memory to allocate short memory buffer (65536 bytes)
+
+While executing:  | qhull Qt
+Options selected for Qhull 2020.2.r 2023/01/02:
+  run-id 1484683974  Qtriangulate  _pre-merge  _zero-centrum  _max-width 49
+  Error-roundoff 4.8e-14  _one-merge 3.4e-13  _near-inside 1.7e-12
+  Visible-distance 9.6e-14  U-max-coplanar 9.6e-14  Width-outside 1.9e-13
+  _wide-facet 5.8e-13  _maxoutside 3.9e-13
+Last point added to hull was p2575.  Last merge was #167.
+
+At error exit:
+
+Convex hull of 4952 points in 3-d:
+
+  Number of vertices: 726
+  Number of coplanar points: 198
+  Number of facets: 1336
+  Number of non-simplicial facets: 65
+
+Statistics for:  | qhull Qt
+
+  Number of points processed: 771
+  Number of hyperplanes created: 4056
+  Number of distance tests for qhull: 86999
+  Number of distance tests for merging: 20919
+  Number of distance tests for checking: 0
+  Number of merged facets: 167
+
+
+precision problems (corrected unless 'Q0' or an error)
+    166 coplanar horizon facets for new vertices
+    174 coplanar points during partitioning
+Train objects (11): ['cube', 'rectangular_prism', 'capsule', 'ellipsoid', 'flat_disk', 'rod', 'l_block', 'dumbbell', 'square_pyramid', 'triangular_prism', 'hexagonal_prism']
+Holdout objects (4): ['cone', 'cylindrical_prism', 'plus_cross', 'sphere']
+Using cpu device
+Traceback (most recent call last):
+  File "C:\Users\oskic\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\connection.py", line 338, in _recv_bytes
+    nread, err = ov.GetOverlappedResult(True)
+                 ~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+BrokenPipeError: [WinError 109] The pipe has been ended
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\oskic\PI-TCN-SlipNet\Synthetic data creation\Simulation\train_rl_policy.py", line 392, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\Synthetic data creation\Simulation\train_rl_policy.py", line 377, in main
+    model.learn(total_timesteps=remaining, callback=[checkpoint_cb, rewardconfig_cb],
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+               reset_num_timesteps=(args.resume_from is None))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\ppo\ppo.py", line 311, in learn
+    return super().learn(
+           ~~~~~~~~~~~~~^
+        total_timesteps=total_timesteps,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        progress_bar=progress_bar,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\common\on_policy_algorithm.py", line 311, in learn
+    total_timesteps, callback = self._setup_learn(
+                                ~~~~~~~~~~~~~~~~~^
+        total_timesteps,
+        ^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        progress_bar,
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\common\base_class.py", line 423, in _setup_learn
+    self._last_obs = self.env.reset()  # type: ignore[assignment]
+                     ~~~~~~~~~~~~~~^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\common\vec_env\subproc_vec_env.py", line 145, in reset
+    results = [remote.recv() for remote in self.remotes]
+               ~~~~~~~~~~~^^
+  File "C:\Users\oskic\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\connection.py", line 256, in recv
+    buf = self._recv_bytes()
+  File "C:\Users\oskic\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\connection.py", line 353, in _recv_bytes
+    raise EOFError
+EOFError

@@ -2942,3 +2942,39 @@ its scale. Not started -- reporting first, per instructions.
 - **Code timing:** `--n-steps` goes into `train_rl_policy.py` only after the evaluation chain ends, because `evaluate_rl_policy.py` imports that file.
 
 - **Addendum to "Pre-registered: longer rollouts", from code review, before any run:** 301,056 steps holds only for a run with no crash. Crash-and-resume runs can total 300,040-302,032, and the baselines were 300,224, 300,408 and 300,032. Each crash also discards about 1,016 counted steps, against 504 at baseline. Record each seed's actual total and crash count with its result. If a seed crashes between its last checkpoint and final save, the script uses that last checkpoint as the final policy and says so in `Data/_run_nsteps_retrain.out`.
+
+## RL on the locked set, 2.2% check and deterministic vs. stochastic: results, with the stop rule tripped
+
+- **Date:** 2026-11-03. `evaluate_rl_policy.py --continue-past-formation-drop`, `model_a.pt` (`ce813826`), deterministic unless stated. Files: `Data/rl_seed{1,2,3}_1005trial_results.jsonl`, `Data/evalpath_*.jsonl`, `Data/rl_seed{1,2,3}_dev_{deterministic,stochastic}.jsonl`. Reproduce with `src/analysis/nov3_drop_analysis/rl_locked_checks.py`. Each locked file has 1,005 rows, no errored trials, no duplicates and one code hash. Policies: seed 1 `afb280ad`, seed 2 `af378971`, seed 3 `58587691`.
+- **Locked set, primary figure, seeds 3-66, held (Wilson 95% CI):**
+
+  | | 5 cm | 10 cm |
+  |---|---|---|
+  | Seed 1 (best of 3 seeds, deterministic) | 588/960, 61.2% (58.1-64.3) | 610/960, 63.5% (60.4-66.5) |
+  | Seed 2 | 405/960, 42.2% (39.1-45.3) | 423/960, 44.1% (41.0-47.2) |
+  | Seed 3 | 144/960, 15.0% (12.9-17.4) | 147/960, 15.3% (13.2-17.7) |
+  | **Mean and SD across seeds** | **39.5, SD 23.2** | **41.0, SD 24.3** |
+  | Hand-tuned A | 180/960, 18.8% | 305/960, 31.8% |
+  | Hand-tuned B | 185/960, 19.3% | 308/960, 32.1% |
+
+- **All 1,005 trials, 5 cm / 10 cm:** seed 1 617 / 639 (61.4% / 63.6%). Seed 2 421 / 440 (41.9% / 43.8%). Seed 3 152 / 155 (15.1% / 15.4%). Mean 39.5 / 40.9, SD 23.2 / 24.2.
+- **Stopping rule:** no seed reaches 70%, so the rule applies: report the mean and SD across all seeds, and a single best seed is never the headline. Seed 1 must be labelled "best of 3 seeds, deterministic".
+- **Paired with hand-tuned A, seeds 3-66 (held only by RL / only by hand-tuned, exact McNemar):** at 5 cm, seed 1 438 / 30 (p = 5e-94), seed 2 299 / 74 (p = 4e-33), seed 3 111 / 147 (p = 0.029). At 10 cm, seed 1 353 / 48 (p = 2e-58), seed 2 250 / 132 (p = 2e-9), seed 3 95 / 253 (p = 1e-17). Seeds 1 and 2 beat hand-tuned, and seed 3 is worse than it. Model B gives the same pattern; the script prints those.
+- **Three-seed mean against hand-tuned A, seeds 3-66 (not pre-registered, df 2):** 5 cm, difference 20.7 points, t = 1.54, p = 0.26. 10 cm, difference 9.2 points, t = 0.66, p = 0.58. So individual policies differ clearly from hand-tuned, but this does not establish that the training procedure beats it on average.
+- **The 45-trial numbers held up roughly, at 5 cm:** seed 1 64.4% to 61.2%, seed 2 35.6% to 42.2%, seed 3 17.8% to 15.0%.
+- **Outcomes at 5 cm, all 1,005 (held / fell past 5 cm / slipped without falling):** seed 1 617 / 200 / 188. Seed 2 421 / 291 / 293. Seed 3 152 / 486 / 367.
+- **Training vs. held-out objects at 5 cm, seeds 3-66:** seed 1 57.1% vs. 72.7%. Seed 2 38.8% vs. 51.6%. Seed 3 15.5% vs. 13.7%. Hand-tuned A 15.6% vs. 27.3%, so the held-out group also scores higher under a controller with no training objects. This likely reflects which shapes are in that group, not generalization. Seed 1's 72.7% is not a 70% result.
+- **Per object at 5 cm, all seeds, of 67 (seed 1 / 2 / 3 / hand-tuned A):** square_pyramid 66/65/21/25. rod 63/35/0/4. cone 61/66/25/15. dumbbell 61/17/7/32. sphere 56/43/0/48. plus_cross 53/24/8/10. ellipsoid 51/37/16/23. triangular_prism 51/15/11/0. hexagonal_prism 39/33/6/0. capsule 38/31/27/21. cylindrical_prism 26/3/2/0. l_block 22/21/18/3. flat_disk 14/16/1/3. rectangular_prism 9/6/3/5. cube 7/9/7/1. Seed 1 reaches 70% on 8 of 15 objects. Cube and rectangular prism stay at 9 of 67 or fewer under every controller here. The cause is not established.
+- **2.2% eval-path check: passed.** Direct and wrapper paths agree on 45/45 trials (rule: at least 43), and also on slip, drop and episode length, with rewards within 3.5e-6. Both hold 1/45. Stochastic wrapper on training objects: reward 337.5 vs. 334 (+1.0%), length 153.3 vs. 162 (-5.3%), rule within 25%. It holds 0/45. The 2.2% is not an evaluation bug. It stays one unseeded run on 45 trials, so it is not a verdict on VecNormalize.
+- **Deterministic vs. stochastic, dev set, 150 paired trials: THE RULE TRIPS ON ALL THREE POLICIES, at both cutoffs.** Same objects and start conditions in both modes, with action noise seeded per trial.
+
+  | 5 cm | Deterministic | Stochastic | Only det / only sto | Difference | Limit | p |
+  |---|---|---|---|---|---|---|
+  | Seed 1 | 86 (57.3%) | 73 (48.7%) | 19 / 6 | 8.7 | 6.7 | 0.015 |
+  | Seed 2 | 56 (37.3%) | 35 (23.3%) | 24 / 3 | 14.0 | 6.9 | <0.001 |
+  | Seed 3 | 19 (12.7%) | 8 (5.3%) | 14 / 3 | 7.3 | 5.5 | 0.013 |
+
+  At 10 cm: seed 1 91 vs. 75 (difference 10.7, limit 6.8), seed 2 60 vs. 39 (14.0, 7.4), seed 3 19 vs. 8 (7.3, 5.5). Every RL success rate reported so far measures the mean action, and sampling from the policy as trained holds 7-14 points fewer.
+- **Action on the trip:** reported to the user on 2026-11-03. Which mode is primary for later comparisons is waiting on the user. Locked-set numbers above are deterministic and are labelled so. Longer-rollout results are not used until this is decided. Training itself does not depend on the evaluation mode, so the retrain was not cancelled.
+- **Baseline dev scores for the longer-rollout verdict, deterministic:** 5 cm 57.3, 37.3, 12.7 (mean 35.8, SD 22.4). 10 cm 60.7, 40.0, 12.7 (mean 37.8, SD 24.1). So "improved" at 5 cm needs every new seed above 57.3% and a mean of at least 58.2%. No seed has been judged yet.
+- **First longer-rollout launch failed at startup, no training happened.** The patch applied at 23:52, then all 15 attempts (5 per seed) exited with 0 steps and no policy, and no seed was scored. Cause: Windows commit memory ran out. The limit is 35.8 GB (31.8 GB RAM plus a fixed 4 GB page file), and about 24 GB was already committed by other software, including 8.8 GB for the browser. Each training launch needs about 15 GB across 5 processes. Evidence: 4 of 15 attempt logs show qhull or `MemoryError` out-of-memory failures, the other 11 show the same worker crash during reset, and 2.0 GB of commit was left during an attempt. Logs: `Data/nsteps512_failed_startup_2026-11-03/`. These are not seed crashes for the addendum's count. The restart (`Data/_run_nsteps_restart.sh`) uses the same config, still 4 envs, and waits for at least 17 GB of free commit.

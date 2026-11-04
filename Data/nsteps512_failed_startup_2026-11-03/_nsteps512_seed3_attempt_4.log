@@ -1,0 +1,76 @@
+Process SpawnProcess-3:
+Traceback (most recent call last):
+  File "C:\Users\oskic\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\process.py", line 320, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\oskic\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\common\vec_env\subproc_vec_env.py", line 46, in _worker
+    observation, reset_info = env.reset(seed=data[0], **maybe_options)
+                              ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\common\monitor.py", line 85, in reset
+    return self.env.reset(**kwargs)
+           ~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\Synthetic data creation\Simulation\rl_env.py", line 495, in reset
+    raise last_exc
+  File "C:\Users\oskic\PI-TCN-SlipNet\Synthetic data creation\Simulation\rl_env.py", line 480, in reset
+    self._build(object_name, scene_seed)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\Synthetic data creation\Simulation\rl_env.py", line 328, in _build
+    model = self._compile_model(scene_path)
+  File "C:\Users\oskic\PI-TCN-SlipNet\Synthetic data creation\Simulation\rl_env.py", line 310, in _compile_model
+    model = mujoco.MjModel.from_xml_string(xml_string)
+ValueError: Error: engine error: Could not allocate memory
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+Train objects (11): ['cube', 'rectangular_prism', 'capsule', 'ellipsoid', 'flat_disk', 'rod', 'l_block', 'dumbbell', 'square_pyramid', 'triangular_prism', 'hexagonal_prism']
+Holdout objects (4): ['cone', 'cylindrical_prism', 'plus_cross', 'sphere']
+Using cpu device
+Traceback (most recent call last):
+  File "C:\Users\oskic\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\connection.py", line 338, in _recv_bytes
+    nread, err = ov.GetOverlappedResult(True)
+                 ~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+BrokenPipeError: [WinError 109] The pipe has been ended
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\oskic\PI-TCN-SlipNet\Synthetic data creation\Simulation\train_rl_policy.py", line 392, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\Synthetic data creation\Simulation\train_rl_policy.py", line 377, in main
+    model.learn(total_timesteps=remaining, callback=[checkpoint_cb, rewardconfig_cb],
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+               reset_num_timesteps=(args.resume_from is None))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\ppo\ppo.py", line 311, in learn
+    return super().learn(
+           ~~~~~~~~~~~~~^
+        total_timesteps=total_timesteps,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        progress_bar=progress_bar,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\common\on_policy_algorithm.py", line 311, in learn
+    total_timesteps, callback = self._setup_learn(
+                                ~~~~~~~~~~~~~~~~~^
+        total_timesteps,
+        ^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        progress_bar,
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\common\base_class.py", line 423, in _setup_learn
+    self._last_obs = self.env.reset()  # type: ignore[assignment]
+                     ~~~~~~~~~~~~~~^^
+  File "C:\Users\oskic\PI-TCN-SlipNet\venv\Lib\site-packages\stable_baselines3\common\vec_env\subproc_vec_env.py", line 145, in reset
+    results = [remote.recv() for remote in self.remotes]
+               ~~~~~~~~~~~^^
+  File "C:\Users\oskic\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\connection.py", line 256, in recv
+    buf = self._recv_bytes()
+  File "C:\Users\oskic\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\connection.py", line 353, in _recv_bytes
+    raise EOFError
+EOFError

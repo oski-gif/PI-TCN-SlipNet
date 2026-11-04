@@ -1,11 +1,12 @@
 # Paper outline: slip detection and closed-loop grasp control in simulation
 
-**Status:** working draft, last updated Nov 3, 2026, midnight. R9, R12 and R13 are filled in. R14 waits on the longer-rollout retrain, and the seeded F1 items wait on your runs.
+**Status:** working draft, last updated Nov 4, 2026, evening. R9, R12, R13 and R14 are filled in, and R15-R17 are new. **Points marked `[FLAG Nov 4]` are contradicted or changed by the Nov 4 review and need rewriting before use. I flagged them and did not rewrite them, because the framing and the headline are your call** (see `reports/path_to_70_review_2026-11-04.md`). The seeded F1 items wait on your runs.
 
 **How to read this file**
 - Every point is something to say in that section, in the order it should appear. Rewrite it in your own words.
 - `[PENDING: ...]` means the run hasn't finished. Don't estimate these numbers.
 - `[YOUR CALL: ...]` means a decision that is yours.
+- `[FLAG Nov 4: ...]` means a Nov 4 finding changes this point. The evidence is in `results.md`, "Nov 4 code review and diagnostics".
 - `[n]` points to the numbered reference list at the end.
 - Numbers come from `src/training/results.md`, or from `paper_stats.py` and `rl_locked_checks.py` in `src/analysis/nov3_drop_analysis/` (run them from the repo root to reproduce them). Result files are named in each section.
 
@@ -21,15 +22,18 @@
 
 **The four findings to carry the paper**
 1. How "held" is defined changes the result a lot. The same 1,005 trials score 44.6%, 31.7% or 18.9%.
-2. In this setup, a large static F1 gap (0.691 vs. 0.799) produced no closed-loop difference under the hand-tuned controller.
-3. A learned controller can beat hand-tuned control, but training doesn't reliably produce one. Three repeats of the same setup held 61.2%, 42.2% and 15.0% of 960 trials at 5 cm, against 18.8% for hand-tuned, and the third is worse than hand-tuned.
-4. Failures fall into two kinds that depend on object shape: objects falling before the pull, and objects slipping during it. A few shapes almost never hold.
+2. In this setup, a large static F1 gap (0.691 vs. 0.799) produced no closed-loop difference under the hand-tuned controller. `[FLAG Nov 4: stronger evidence now exists. Removing the TCN signal changes 0 of 450 RL outcomes on the dev set (R15). The "actuator headroom" explanation does not hold up, though (R6).]`
+3. A learned controller can beat hand-tuned control, but training doesn't reliably produce one. Three repeats of the same setup held 61.2%, 42.2% and 15.0% of 960 trials at 5 cm, against 18.8% for hand-tuned, and the third is worse than hand-tuned. `[FLAG Nov 4: a fixed script with no policy or TCN matches seed 1 on the dev set, 86 vs. 86 of 150 (R16). So don't attribute this lead to learned feedback. It may be the grip.]`
+4. Failures fall into two kinds that depend on object shape: objects falling before the pull, and objects slipping during it. A few shapes almost never hold. `[FLAG Nov 4: much of the "few shapes almost never hold" part looks like contact settings (R17).]`
+5. `[FLAG Nov 4, YOUR CALL: a possible new finding. Contact solver settings alone moved every controller by 20-30 points on the dev set, more than any detector or controller difference here (R17). Not adopted, and fresh-seed runs are pending.]`
 
 **Don't claim**
 - That this is physics-informed. The current Model B has no physics loss (see 5.5).
 - That any of this is novel, unless your literature check supports it. Offline metrics failing to predict closed-loop results is already known in driving research [37, 38], so the possible contribution is showing it for tactile slip detection and grasping, with these specifics.
 - Anything about real hardware. This is simulation only.
-- That RL training beats hand-tuned control on average. Two of three policies do, one doesn't, and the three-repeat mean isn't established as better (R9).
+- That RL training beats hand-tuned control on average. Two of three policies do, one doesn't, and the three-repeat mean isn't established as better (R9). 
+- `[FLAG Nov 4]` That a stricter contact setting is physically correct. It shrinks a documented solver artifact, and pad friction still doesn't predict holding (R17).
+- `[FLAG Nov 4]` That the slip signal improves RL. It changes no outcome at test time (R15).
 
 **Numbers not to use**
 
@@ -44,8 +48,11 @@
 | Seed 1's 72.7% on held-out objects as reaching 70% | Those 4 shapes are easier for every controller here, and it's a subset (R9) |
 | VecNormalize's 2.2% as a verdict on VecNormalize | The number is real (the eval-path check passed), but it is one unseeded run on 45 trials (R12) |
 | "89 episodes per object", "published range 27-95%", "pure randomness" | Corrected in `results.md`, "Corrections to tonight's audit" |
+| 81.3% or 78.7% as a result | Seed 1 is best of 3, on the much-used dev set, under settings chosen after seeing scores and not adopted (R17). Use only what the fresh-seed runs give, and only if you adopt a setting |
+| 61.3% for the slower fixed grip as an unbiased figure | Best of several grips on 150 trials, with speeds read from seed 1 (R16) |
 
 **`[YOUR CALL]` before writing**
+- **Which contact settings are the benchmark (R17).** This comes first, because it changes every number below. Options and my recommendation are in `reports/path_to_70_review_2026-11-04.md`.
 - Target venue and format (length, sections, citation style). References below are numbered and can be reformatted.
 - Which Model A to cite. My recommendation: label closed-loop results as F1 0.691 and report static F1 as a range (see R2).
 - Whether to report 5 cm, 10 cm or both. Plan so far: both, with 5 cm primary for RL because it was the existing rule.
@@ -70,7 +77,7 @@
 4. **Evaluation:** 1,005 paired trials per condition, evaluation rules written in advance, and scoring under several drop definitions.
 5. **Result 1:** hand-tuned success on identical trials was 44.6%, 31.7% or 18.9%, depending on whether objects falling before the pull counted as failures.
 6. **Result 2:** two detector checkpoints with F1 0.691 and 0.799 tied in closed loop (paired test p = 0.45 at 5 cm).
-7. **Result 3:** across three PPO training repeats, held rates at 5 cm were 61.2%, 42.2% and 15.0% (mean 39.5%, SD 23.2), against 18.8% for hand-tuned control on the same 960 trials. Learned control can be much better, but training didn't reliably produce it. `[YOUR CALL: confirm the evaluation mode, R13]`
+7. **Result 3:** across three PPO training repeats, held rates at 5 cm were 61.2%, 42.2% and 15.0% (mean 39.5%, SD 23.2), against 18.8% for hand-tuned control on the same 960 trials. Learned control can be much better, but training didn't reliably produce it. `[YOUR CALL: confirm the evaluation mode, R13]` `[FLAG Nov 4: "learned control can be much better" needs rewriting, see finding 3.]`
 8. **Conclusion:** grasp benchmarks should verify the object is still held, and detectors should be evaluated in closed loop.
 
 ---
@@ -182,12 +189,12 @@ Total 2,300 steps. Grip target for hand-tuned control: squeeze 0.95 of the actua
 - **Filter:** trials with no finger contact are dropped, leaving 17,514 (10,588 slip, 6,926 no-slip).
 - **Split:** random by trial: 12,259 train, 2,627 validation, 2,628 test. Note that this tests new trials of the same objects, not new objects.
 - **Labels:** per timestep, slip once displacement passes the threshold.
-- **Input features, Model A (22 channels):** touch, normal force, tangential force and torque magnitude for each of 5 fingertips, plus pull force and phase.
+- **Input features, Model A (22 channels):** touch, normal force, tangential force and torque magnitude for each of 5 fingertips, plus pull force and phase. `[FLAG Nov 4: the channels named normal and tangential don't measure that. Force axis 2 reads a median 18% of the true contact force, because the contact normal mostly lies along other sensor axes. Describe them as force components along fixed sensor axes. Results stand, but this wording doesn't.]`
 - **Excluded as leakage [41]:** object position, displacement and slip speed. Displacement defines the label, and object position wouldn't come from fingertip sensing.
 - **Note on pull force and phase:** these are known commands, not measurements. Keep them in the description, because `results.md` notes that pull force carries visible onset signal while tactile channels showed no visible pre-slip pattern (Oct 15 entry). Mention this honestly.
 - **Architecture:** causal TCN [22, 24], hidden size 32, kernel 3, 7 layers, dilations 1 to 64, receptive field 255 steps, with residual connections and a 2-class output per timestep.
-- **Model B (25 channels):** Model A plus three per-trial values broadcast across time: combined friction, object mass, and grip force at settle. The code calls this PI-TCN, but it has no physics loss. Call it something like "physics-feature TCN" in the paper.
-  - Say that nine candidate physics features and losses were tested in October and did not separate slip onset from stable grasping (`results.md`, "Model B").
+- **Model B (25 channels):** Model A plus three per-trial values broadcast across time: combined friction, object mass, and grip force at settle. The code calls this PI-TCN, but it has no physics loss. Call it something like "physics-feature TCN" in the paper. `[FLAG Nov 4: "grip force at settle" comes from that same axis, so it isn't grip force.]`
+  - Say that nine candidate physics features and losses were tested in October and did not separate slip onset from stable grasping (`results.md`, "Model B"). `[FLAG Nov 4: those tests may be confounded by the mislabeled axis. Don't present this as evidence that physics features can't work.]`
 - **Training:** Adam [27] at learning rate 1e-3, batch 32, class-weighted cross-entropy with label smoothing 0.1 [28]. Model A used 20 epochs, Model B 40. Runs were unseeded.
 - **Metrics:** per-timestep F1 and accuracy on the slip class, excluding padding. Because classes are imbalanced (22.6% slip timesteps), also give precision and recall [29].
 - **Threshold:** Model B's 0.30 was chosen on validation data only, then applied once to test. Model A uses argmax.
@@ -302,8 +309,8 @@ Hand-tuned, 1,005 trials. Falls don't depend on the model: flags match between M
   - No drop rule: 12 held only by A, 13 only by B (exact McNemar p = 1.00)
   - 10 cm: 12 and 13 (p = 1.00)
   - 5 cm: 6 and 10 (p = 0.45)
-- Likely mechanism: most holds needed no correction at all. Under the 10 cm rule, 256 of A's 319 holds (80.3%) and 207 of B's 320 holds (64.7%) had zero corrections.
-- Second mechanism: at squeeze 0.95, only 5% of the actuator range remains. In all 7 trials tested, every actuator was pinned at its maximum by the end of the pull (`results.md`, "Actuator saturation"; a small diagnostic sample).
+- Likely mechanism: most holds needed no correction at all. Under the 10 cm rule, 256 of A's 319 holds (80.3%) and 207 of B's 320 holds (64.7%) had zero corrections. `[FLAG Nov 4: a fixed ramp with no TCN and no corrections holds 40 of 150 on the dev set against A's 35, paired 6 vs. 1, p = 0.125 (R15). The exact no-TCN hand-tuned run is queued.]`
+- Second mechanism: at squeeze 0.95, only 5% of the actuator range remains. In all 7 trials tested, every actuator was pinned at its maximum by the end of the pull (`results.md`, "Actuator saturation"; a small diagnostic sample). `[FLAG Nov 4: don't use this as the explanation. Fingertip contact forces reach 20-70 N on objects under 1.5 N, and friction capacity is about 26x the load. The actuators are pinned, but a stronger grip isn't what's missing.]`
 - **Be careful:** this is two checkpoints with one controller. They also differ in inputs, epochs and operating point. It shows that the F1 gap didn't matter here, not that detection never matters. A controller with more grip authority might respond differently.
 - `[PENDING, optional: hand-tuned run with the F1 0.773 file. Same architecture as the 0.691 file, so it's a cleaner test]`
 
@@ -378,13 +385,13 @@ Hand-tuned Model A, 67 trials per object, under the 10 cm rule.
 - Failure types differ by shape. Flat disk and rectangular prism mostly fall. Cylinder, cube and hexagonal prism mostly slip.
 - Slips are mostly real losses. 267 of 517 went more than 10x past the limit (median slip 14.1 cm), and 168 stayed within 2x.
 - Sensitivity to the slip limit: 2x gives 48.5%. Report this as sensitivity, not as a result.
-- Dumbbell note: 67/67 held and 0 slipped is a striking outlier, with 35 trials falling past 5 cm. Consider whether its shape lets it rest on the fingers. `[CHECK before claiming anything]`
+- Dumbbell note: 67/67 held and 0 slipped is a striking outlier, with 35 trials falling past 5 cm. Consider whether its shape lets it rest on the fingers. `[CHECK before claiming anything]` `[FLAG Nov 4: on the dev set, hand-tuned A holds the dumbbell 6 of 10 at 5 cm under default settings and 1 of 10 under noslip, so this outlier may depend on contact settings.]`
 - Kind summary at 10 cm: primitives 150/536, meshes 73/268, compounds 96/201.
 - RL per object at 5 cm, all seeds, held of 67 (repeat 1, 2, 3, then hand-tuned A at 5 cm): square pyramid 66, 65, 21, 25. Rod 63, 35, 0, 4. Cone 61, 66, 25, 15. Dumbbell 61, 17, 7, 32. Sphere 56, 43, 0, 48. Plus cross 53, 24, 8, 10. Ellipsoid 51, 37, 16, 23. Triangular prism 51, 15, 11, 0. Hexagonal prism 39, 33, 6, 0. Capsule 38, 31, 27, 21. Cylinder 26, 3, 2, 0. L-block 22, 21, 18, 3. Flat disk 14, 16, 1, 3. Rectangular prism 9, 6, 3, 5. Cube 7, 9, 7, 1.
-- The best RL repeat reaches 70% on 8 of 15 objects. Cube and rectangular prism stay at 9 of 67 or fewer under every controller. Whether that's a physical limit of this grip isn't measured (see 7.4).
+- The best RL repeat reaches 70% on 8 of 15 objects. Cube and rectangular prism stay at 9 of 67 or fewer under every controller. Whether that's a physical limit of this grip isn't measured (see 7.4). `[FLAG Nov 4: under stricter contact settings, seed 1 goes from cube 0 to 5-7 of 10, rectangular prism 1 to 5, and flat disk 0 to 10 (R17). Much of this looks like contact settings rather than a physical limit.]`
 
 ### R11. What the RL policy learned
-- The best policy never closes the middle finger: closure was exactly 0.00 at every sampled step on all 8 objects traced, including ones it holds (`results.md`, Oct 31).
+- The best policy never closes the middle finger: closure was exactly 0.00 at every sampled step on all 8 objects traced, including ones it holds (`results.md`, Oct 31). `[FLAG Nov 4: the median trial keeps it at 0, but on 4 of 15 traced trials it closes partway, up to 0.75, so "never" is too strong. All 15 objects and the fixed-grip test are in R16.]`
 - It appears to have found one 4-finger strategy that works on curved and pointed objects but not flat or boxy ones. That cause is inferred, not proven.
 - Failure types across repeats, on 45 trials (slipped, fell past 5 cm): repeat 1: 5 and 11. Repeat 2: 15 and 14. Repeat 3: 15 and 22.
 - Correct the older log claim: hand-tuned control also passes 5 cm on 23 of these 45 trials, so RL didn't create this failure type.
@@ -414,10 +421,55 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 - Every RL rate in this paper measures the policy's mean action. Sampling from the policy as trained holds 7-14 points fewer. State this next to the RL results.
 - `[YOUR CALL: which mode is primary. My recommendation is deterministic, with stochastic reported beside it]`
 
-### R14. Longer training rollouts `[PENDING]`
-- `[PENDING: 3 new repeats with rollout 512. Dev-set scores, verdict by the pre-registered rule, SD compared with baseline, actual step totals and crash counts]`
-- Baseline to compare against, dev set, deterministic, 5 cm: 57.3%, 37.3%, 12.7% (mean 35.8, SD 22.4). "Improved" needs every new repeat above 57.3% and a mean of at least 58.2%.
-- The pre-registered bar is high, and "inconclusive" is the likeliest verdict. Report it as such.
+### R14. Longer training rollouts: worse
+- 3 new repeats with rollout 512, all else unchanged, each 301,056 steps with no crash.
+- Dev set, deterministic: 10.0%, 0.0% and 2.7% at 5 cm (mean 4.2, SD 5.2), and the same at 10 cm. Baseline: 57.3%, 37.3%, 12.7% at 5 cm (mean 35.8, SD 22.4), and 60.7%, 40.0%, 12.7% at 10 cm.
+- Pre-registered verdict at both cutoffs: **worse**. Every new repeat is below every baseline repeat, and the mean drop (31.6 and 33.6 points) passes the bar (22.4 and 24.1).
+- SD falls only because all three are near the floor. So the hypothesis that rollouts shorter than a trial cause the spread isn't supported.
+- Why it got worse isn't established. Both take about the same gradient steps, but this collects half as many rollouts. That's a hypothesis.
+- Mean evaluation reward doesn't rank these policies by holding: 434 with 4 held against 415 with 19 held.
+- Deterministic only, and the evaluation mode is still your call (R13).
+
+### R15. The TCN signal in closed loop `[NEW Nov 4, dev set]`
+- With the slip probability replaced by 0 at test time, the three policies hold 86, 56 and 19 of 150, the same as with it. 0 of 450 trials change at 5 cm or 10 cm.
+- Trajectories barely differ: seed 1 has the same trial length on 145 of 150.
+- Hand-tuned: a fixed ramp with no TCN and no corrections holds 40 of 150, against A's 35 (paired 6 vs. 1, p = 0.125). 10 cm: 62 vs. 58 (p = 0.344). `[PENDING: the exact no-TCN hand-tuned run]`
+- **Be careful:** this tests the signal's use at run time. No policy was trained without it, so it doesn't show training with it was useless.
+
+### R16. A fixed grip matches the best RL policy `[NEW Nov 4, dev set]`
+- Fixed grips: no policy, tactile input or TCN. Same environment and scoring. Held of 150, default contact settings:
+
+| Grip or controller | 5 cm | 10 cm | Fell | Slipped |
+|---|---|---|---|---|
+| Thumb, index, ring, pinky, full speed | 86 (57.3%) | 60.7% | 34 | 30 |
+| Same, slower ring and pinky (speeds read from seed 1) | 92 (61.3%) | 64.0% | 29 | 29 |
+| Thumb, index, ring, full speed | 76 (50.7%) | 52.7% | 40 | 34 |
+| All five fingers, full speed | 34 (22.7%) | 39.3% | 98 | 18 |
+| Slow 5-finger close, like the hand-tuned ramp | 40 (26.7%) | 41.3% | 85 | 25 |
+| RL seed 1 | 86 (57.3%) | 60.7% | 33 | 31 |
+
+- Paired with seed 1 at 5 cm: 9 vs. 9 (p = 1.00) with the first grip, 7 vs. 1 (p = 0.07) with the second, 8 vs. 60 with all five fingers.
+- Seed 1's median closure by RL steps 10, 20 and 50: thumb and index 0.80, 1.00, 1.00. Ring 0.62, 1.00, 1.00. Pinky 0.20, 0.62, 1.00. Middle 0. Raw mean actions sit near or beyond the +1 limit, and 4 of 15 traced trials change any finger by more than 0.01 during the pull.
+- **Be careful:** choosing among grips on 150 trials inflates the best one, and seed 1's traces informed these grips. `[PENDING: fixed grips under stricter contact settings; do seeds 2 and 3 differ mainly in which fingers they close?]`
+
+### R17. Contact solver settings `[NEW Nov 4, dev set, exploratory, NOT adopted, YOUR CALL]`
+- The scene sets no contact options, so it runs MuJoCo's defaults: pyramidal cone, `impratio` 1, no noslip pass [20].
+- At full load under default settings (seed 1, 15 trials): objects move at a median 1.18 mm/s, up to 5.9, while contacts use 3% of their friction limit and capacity is 26x the load. Coulomb friction allows no sliding there. MuJoCo documents this as expected behavior of its soft-contact model and calls slippage "especially problematic in manipulation tasks" [48].
+- Other MuJoCo hand models set these options [49]: Allegro, Shadow Hand and Robotiq 2F-85 use `cone="elliptic" impratio="10"`, LEAP uses `impratio="100"`, and Shadow DEXEE uses `cone="elliptic" noslip_iterations="5"`.
+- Same controllers, none retrained. Held of 150 at 5 cm (10 cm):
+
+| Controller | Default | Noslip pass | Elliptic, `impratio` 10 |
+|---|---|---|---|
+| RL seed 1 | 57.3% (60.7%) | 81.3% (86.0%) | 78.7% (82.7%) |
+| RL seed 2 | 37.3% (40.0%) | 67.3% (72.0%) | `[PENDING]` |
+| RL seed 3 | 12.7% (12.7%) | 40.7% (44.0%) | `[PENDING]` |
+| Hand-tuned A | 23.3% (38.7%) | 44.0% (67.3%) | `[PENDING]` |
+
+- Paired against default at 5 cm (held only with / only without): seed 1 42 / 6, seed 2 56 / 11, seed 3 49 / 7, hand-tuned A 41 / 10, all p below 0.0001. Noslip against elliptic, seed 1: 15 / 11, p = 0.56.
+- Three-seed mean under noslip: 63.1%, SD 20.6, at 5 cm. So "one policy above 70%" and "consistent 70%" are different claims.
+- The grip doesn't change: seed 1's median closure matches at every sampled step. Among its held trials, grips carried mostly by friction go from 16 to 52.
+- **What argues against over-reading this:** the settings were chosen after seeing scores, on a much-used dev set. The policies and TCN were trained on default physics. Pad friction doesn't predict holding under any setting (seed 1 under noslip, 84.0% at low friction and 78.7% at high). Contacts at a slip reach a median 0.76 of their limit, so not every slip is sliding at the limit. And MuJoCo calls noslip "just an adhoc mechanism".
+- `[PENDING: 1,005 fresh trials per controller under each setting, pre-registered in results.md. The locked set stays unrun under any new setting until you decide.]`
 
 ---
 
@@ -429,21 +481,21 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 - The same flaw reached the training labels. In a sample of 1,500 contact-only trials, 349 of 593 no-slip examples (59%) fell more than 15 cm. A label check is worth doing before training.
 
 **7.2 Why better detection didn't help here**
-- Most holds needed no correction, and actuators were often at their limit, so the detector had little leverage. The initial grip largely decides the outcome.
+- Most holds needed no correction, and actuators were often at their limit, so the detector had little leverage. The initial grip largely decides the outcome. `[FLAG Nov 4: drop the actuator part (see R6). R15 is stronger evidence for the first part.]`
 - This matches the pattern in driving research that offline metrics aren't sufficient [37, 38], but the setting and sample here are limited.
 - Practical point: measure a detector in closed loop, and make sure the controller has authority to act on it.
 
-**7.3 RL: a good policy is possible, but getting one isn't reliable** `[PENDING: revise after R14]`
+**7.3 RL: a good policy is possible, but getting one isn't reliable** `[FLAG Nov 4: revise this section. Longer rollouts came back worse (R14), a fixed grip matches the best policy (R16), and the slip signal changes no outcome (R15). "A good policy" may mean a policy that found a good fixed grip.]`
 - On 960 locked trials at 5 cm, the same setup gave 61.2%, 42.2% and 15.0%. Two policies clearly beat hand-tuned, and one is worse than it.
 - So "RL is better" is true of some policies, not established for the training procedure. Report all three, not the best (R9).
-- RL acts during formation, which hand-tuned control can't do. This may explain the advantage where there is one. That cause is untested.
+- RL acts during formation, which hand-tuned control can't do. This may explain the advantage where there is one. That cause is untested. `[FLAG Nov 4: now partly tested. A fixed grip that closes fast without the middle finger gives the same result on the dev set (R16).]`
 - All of these rates use the mean action, and sampled actions do 7-14 points worse (R13).
 - The spread between repeats is the main obstacle. This agrees with the wider literature on RL variance [33, 34, 35, 36]. Don't call the size of this spread normal: Henderson et al. may describe PPO as relatively stable, so check [33].
 - Reward and observation changes made single runs worse, but with this spread they can't be attributed to the changes.
 
 **7.4 Where the limits probably are**
 - Some shapes rarely hold under either controller. Every object uses the same hand pose and closing motion.
-- Whether these shapes can be held at all in this setup hasn't been measured. A best-case controller test would answer that (see section 9).
+- Whether these shapes can be held at all in this setup hasn't been measured. A best-case controller test would answer that (see section 9). `[FLAG Nov 4: under default settings, any of 5 controllers holds 74.1% of the locked set, and the best grip or policy per object totals 67.3% on dev. Under stricter contact settings, the hard shapes improve most (R17).]`
 - For a 70% overall rate, if four shapes stayed near zero, the other 11 would need about 95%.
 
 **7.5 Lessons for simulated grasp studies**
@@ -454,7 +506,7 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 
 ## 8. Limitations (state all of these)
 
-- Simulation only, with no hardware validation. Contacts are soft in MuJoCo [19, 20], so slow creep under load is possible and could inflate slip counts near the limit.
+- Simulation only, with no hardware validation. Contacts are soft in MuJoCo [19, 20], so slow creep under load is possible and could inflate slip counts near the limit. `[FLAG Nov 4: no longer "possible". It is measured, and it is large (R17). Rewrite this, and say which settings the final numbers use.]`
 - The pull is downward only, at 1.5x weight. Real disturbances vary.
 - Same hand pose and object placement for all objects, with no grasp planning or arm.
 - Detector data uses a random split by trial, so static scores don't test generalization to new objects.
@@ -476,10 +528,10 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 1. **Measure the ceiling:** a best-case controller shows what share of trials can physically be held. This tells us whether mid-to-high 90s is possible.
 2. **Fix labels:** exclude or relabel near-floor examples, verify the object is in hand, and retrain.
 3. **Seeded multi-run training:** mean and SD for both models.
-4. **True physics-informed TCN:** add a physics loss [25, 26], such as a friction-cone constraint [2], and test it in closed loop.
+4. **True physics-informed TCN:** add a physics loss [25, 26], such as a friction-cone constraint [2], and test it in closed loop. `[FLAG Nov 4: a friction-cone loss assumes slip happens at the friction limit. Under default settings, slips happen at a median 0.56 of the limit and 10% of capacity, and the normal and tangential channels are mislabeled. Fix the contact settings and channels first, and regenerate the data, or this loss would fight its own labels.]`
 5. **Better grip for failing shapes:** hand pose, object placement, adaptive formation. Treat falling and slipping as separate problems.
 6. **More stable RL:** more repeats, tuned rollouts, residual control on top of the hand-tuned controller [46, 47].
-7. **RL with each detector:** test whether RL uses the slip signal at all, by removing it, and compare detectors under RL.
+7. **RL with each detector:** test whether RL uses the slip signal at all, by removing it, and compare detectors under RL. `[FLAG Nov 4: removal is done at test time (R15). Training without the signal is still untested.]`
 8. **Generalization:** leave-object-out splits, which `export_data.py` already supports.
 9. **Toward hardware:** domain randomization [16, 21], then the physical ORCA hand [17].
 
@@ -489,8 +541,8 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 
 1. Restate the question.
 2. Success definition alone moved identical trials between 18.9% and 44.6%.
-3. A large static F1 gap produced no closed-loop difference here, because the initial grip and limited actuator headroom left little for detection to change.
-4. Three PPO training repeats held 61.2%, 42.2% and 15.0% at 5 cm (mean 39.5%, SD 23.2) against 18.8% for hand-tuned control, so a learned policy can be far better, but training didn't reliably produce one.
+3. A large static F1 gap produced no closed-loop difference here, because the initial grip and limited actuator headroom left little for detection to change. `[FLAG Nov 4: drop "limited actuator headroom" (R6).]`
+4. Three PPO training repeats held 61.2%, 42.2% and 15.0% at 5 cm (mean 39.5%, SD 23.2) against 18.8% for hand-tuned control, so a learned policy can be far better, but training didn't reliably produce one. `[FLAG Nov 4: rewrite, see finding 3. Add the contact-settings result if you adopt it or report it (R17).]`
 5. Take-away: verify what success counts, evaluate detectors in closed loop, and report all training repeats.
 6. Next step: measure the physical ceiling and build the true physics-informed model.
 
@@ -501,9 +553,10 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 | Item | Content | Status |
 |---|---|---|
 | Figure 1 | Histogram of formation falls, marking 5 cm and 10 cm | To make, data ready |
-| Figure 2 | Score under each rule, A and B, with intervals | Regenerate `make_figures.py` after the runs; its footer needs updating because drops are now measured |
-| Figure 3 | Per-object heat table with failure type | Regenerate after the runs |
-| Figure 4 | RL per repeat with mean and SD, hand-tuned reference | To make, data ready |
+| Figure 2 | Score under each rule, A and B, with intervals | To make. `reports/figures/fig1_closed_loop_success.png` is related, but it isn't this chart |
+| Figure 3 | Per-object heat table with failure type | Regenerated with final data: `reports/figures/fig3_per_object_success.png`. Numbers may change if the contact settings do |
+| Figure 4 | RL per repeat with mean and SD, hand-tuned reference | Regenerated with final data: `reports/figures/fig2_rl_seed_spread.png`. Numbers may change if the contact settings do |
+| New, optional | R17: each controller under each contact setting | To make once fresh-seed results are in |
 | Figure 5 | Static F1 with spread across seeds | `[PENDING: your seeded runs]` |
 | Optional | Diagram of the pipeline and trial phases | To make |
 | Table 1 | Objects: kind, size, mass, slip limit | To make from `generate_trials.py` |
@@ -628,3 +681,9 @@ Numbered in the order used for planning. Renumber to match your final paper and 
 [44] L. D. Brown, T. T. Cai, and A. DasGupta, "Interval Estimation for a Binomial Proportion," *Statistical Science*, vol. 16, no. 2, pp. 101-133, 2001. doi:10.1214/ss/1009213286. **[M]**
 
 [45] Q. McNemar, "Note on the Sampling Error of the Difference Between Correlated Proportions or Percentages," *Psychometrika*, vol. 12, no. 2, pp. 153-157, 1947. doi:10.1007/BF02295996. **[M]**
+
+**Added Nov 4: read these before relying on them**
+
+[48] MuJoCo documentation, "Modeling" chapter, "Solver settings" and "Preventing slip". https://mujoco.readthedocs.io/en/stable/modeling.html. Read in full on Nov 4, 2026; quotes in `results.md`. Cite the version you used (3.11.0).
+
+[49] MuJoCo Menagerie, model files `wonik_allegro/right_hand.xml`, `shadow_hand/right_hand.xml`, `robotiq_2f85/2f85.xml`, `leap_hand/right_hand.xml` and `shadow_dexee/shadow_dexee.xml`. https://github.com/google-deepmind/mujoco_menagerie. `<option>` lines read on Nov 4, 2026. Cite the repository's own recommended paper and the commit you read.

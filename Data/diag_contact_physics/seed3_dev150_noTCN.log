@@ -1,0 +1,208 @@
+default              cube                 seed=1000 held=False slipped=True  fall=  64.7 mm  max_disp=   6.2 mm
+default              cube                 seed=1001 held=False slipped=False fall= 235.2 mm  max_disp=   0.2 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              cube                 seed=1002 held=False slipped=True  fall= 226.5 mm  max_disp=   6.0 mm
+default              cube                 seed=1003 held=False slipped=True  fall=  90.3 mm  max_disp=   6.3 mm
+default              cube                 seed=1004 held=False slipped=True  fall=  44.9 mm  max_disp=   6.1 mm
+default              cube                 seed=1005 held=False slipped=True  fall=  53.3 mm  max_disp=   6.2 mm
+default              cube                 seed=1006 held=False slipped=True  fall=  69.5 mm  max_disp=   7.2 mm
+default              cube                 seed=1007 held=False slipped=True  fall=  57.6 mm  max_disp=   6.1 mm
+default              cube                 seed=1008 held=False slipped=True  fall=  50.5 mm  max_disp=   6.4 mm
+default              cube                 seed=1009 held=False slipped=True  fall= 225.7 mm  max_disp=   6.0 mm
+default              sphere               seed=1000 held=False slipped=False fall= 232.0 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1001 held=False slipped=False fall= 236.6 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1002 held=False slipped=False fall= 233.3 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1003 held=False slipped=False fall= 236.1 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1004 held=False slipped=False fall= 233.3 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1005 held=False slipped=False fall= 235.5 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1006 held=False slipped=False fall= 233.3 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1007 held=False slipped=False fall= 233.8 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1008 held=False slipped=False fall= 235.2 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              sphere               seed=1009 held=False slipped=False fall= 234.0 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              cone                 seed=1000 held=True  slipped=False fall=  17.9 mm  max_disp=   5.7 mm  speed   2.01 mm/s  tips moved  0.09 mm  friction used 0.14  capacity/load   1.0
+default              cone                 seed=1001 held=True  slipped=False fall=  18.0 mm  max_disp=   3.7 mm  speed   1.19 mm/s  tips moved  0.00 mm  friction used 0.09  capacity/load   1.1
+default              cone                 seed=1002 held=False slipped=True  fall=  22.0 mm  max_disp=   6.0 mm  speed   4.31 mm/s  tips moved  0.00 mm  friction used 0.16  capacity/load   1.5
+default              cone                 seed=1003 held=False slipped=True  fall=  21.8 mm  max_disp=   6.1 mm  speed   6.81 mm/s  tips moved  0.00 mm  friction used 0.24  capacity/load   1.0
+default              cone                 seed=1004 held=False slipped=True  fall=  21.3 mm  max_disp=   6.0 mm  speed   6.04 mm/s  tips moved  0.05 mm  friction used 0.40  capacity/load   1.1
+default              cone                 seed=1005 held=False slipped=True  fall=  21.9 mm  max_disp=   6.0 mm
+default              cone                 seed=1006 held=False slipped=True  fall=  20.7 mm  max_disp=   6.0 mm  speed   5.06 mm/s  tips moved  0.00 mm  friction used 0.17  capacity/load   1.0
+default              cone                 seed=1007 held=False slipped=True  fall=  22.8 mm  max_disp=   6.0 mm
+default              cone                 seed=1008 held=False slipped=True  fall=  22.5 mm  max_disp=   6.0 mm  speed   6.03 mm/s  tips moved  0.05 mm  friction used 0.58  capacity/load   0.8
+default              cone                 seed=1009 held=False slipped=True  fall=  22.1 mm  max_disp=   6.0 mm  speed   3.95 mm/s  tips moved  0.06 mm  friction used 0.24  capacity/load   1.1
+default              rectangular_prism    seed=1000 held=False slipped=True  fall=  35.9 mm  max_disp=  10.5 mm  speed   8.67 mm/s  tips moved  0.65 mm  friction used 0.08  capacity/load  19.6
+default              rectangular_prism    seed=1001 held=False slipped=False fall= 216.7 mm  max_disp=   0.1 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rectangular_prism    seed=1002 held=False slipped=True  fall=  67.7 mm  max_disp=  10.8 mm
+default              rectangular_prism    seed=1003 held=False slipped=False fall= 220.6 mm  max_disp=   0.1 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rectangular_prism    seed=1004 held=False slipped=True  fall=  31.8 mm  max_disp=  10.5 mm  speed   4.71 mm/s  tips moved  0.83 mm  friction used 0.05  capacity/load  70.6
+default              rectangular_prism    seed=1005 held=False slipped=False fall= 217.8 mm  max_disp=   0.1 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rectangular_prism    seed=1006 held=False slipped=False fall= 216.7 mm  max_disp=   0.1 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rectangular_prism    seed=1007 held=False slipped=True  fall= 217.4 mm  max_disp=  10.6 mm
+default              rectangular_prism    seed=1008 held=False slipped=True  fall=  31.9 mm  max_disp=  10.8 mm
+default              rectangular_prism    seed=1009 held=False slipped=True  fall=  70.9 mm  max_disp=  10.7 mm
+default              cylindrical_prism    seed=1000 held=False slipped=True  fall=  45.3 mm  max_disp=   9.0 mm  speed   5.19 mm/s  tips moved  0.53 mm  friction used 0.21  capacity/load   5.2
+default              cylindrical_prism    seed=1001 held=False slipped=True  fall=  50.2 mm  max_disp=   9.0 mm  speed   7.39 mm/s  tips moved  0.10 mm  friction used 0.32  capacity/load   3.5
+default              cylindrical_prism    seed=1002 held=False slipped=True  fall=  55.9 mm  max_disp=   9.2 mm
+default              cylindrical_prism    seed=1003 held=False slipped=True  fall=  49.9 mm  max_disp=   9.2 mm
+default              cylindrical_prism    seed=1004 held=False slipped=True  fall=  36.5 mm  max_disp=   9.0 mm  speed   5.87 mm/s  tips moved  0.26 mm  friction used 0.27  capacity/load   3.6
+default              cylindrical_prism    seed=1005 held=False slipped=True  fall=  67.6 mm  max_disp=   9.1 mm
+default              cylindrical_prism    seed=1006 held=False slipped=True  fall=  75.9 mm  max_disp=   9.1 mm
+default              cylindrical_prism    seed=1007 held=False slipped=True  fall=  75.4 mm  max_disp=   9.2 mm
+default              cylindrical_prism    seed=1008 held=False slipped=True  fall= 214.9 mm  max_disp=   9.0 mm
+default              cylindrical_prism    seed=1009 held=False slipped=True  fall=  76.5 mm  max_disp=   9.3 mm
+default              capsule              seed=1000 held=True  slipped=False fall=  12.8 mm  max_disp=   8.4 mm  speed   2.95 mm/s  tips moved  0.31 mm  friction used 0.04  capacity/load  23.6
+default              capsule              seed=1001 held=True  slipped=False fall=  38.6 mm  max_disp=   9.8 mm  speed   3.39 mm/s  tips moved  0.26 mm  friction used 0.08  capacity/load  15.0
+default              capsule              seed=1002 held=False slipped=True  fall=  36.1 mm  max_disp=  12.0 mm
+default              capsule              seed=1003 held=False slipped=True  fall=  24.2 mm  max_disp=  12.0 mm  speed   3.55 mm/s  tips moved  0.37 mm  friction used 0.04  capacity/load  58.5
+default              capsule              seed=1004 held=False slipped=True  fall=  28.3 mm  max_disp=  12.0 mm  speed   4.77 mm/s  tips moved  0.26 mm  friction used 0.10  capacity/load  10.5
+default              capsule              seed=1005 held=False slipped=False fall= 213.4 mm  max_disp=   0.4 mm  speed   0.16 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              capsule              seed=1006 held=True  slipped=False fall=  25.5 mm  max_disp=   8.7 mm  speed   3.00 mm/s  tips moved  0.35 mm  friction used 0.06  capacity/load  16.2
+default              capsule              seed=1007 held=False slipped=False fall= 212.6 mm  max_disp=  11.9 mm  speed   4.94 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              capsule              seed=1008 held=False slipped=False fall= 210.4 mm  max_disp=   3.9 mm  speed   0.71 mm/s  tips moved  0.00 mm  friction used 0.09  capacity/load   1.0
+default              capsule              seed=1009 held=True  slipped=False fall=  43.2 mm  max_disp=   8.6 mm  speed   2.90 mm/s  tips moved  0.31 mm  friction used 0.09  capacity/load  33.4
+default              ellipsoid            seed=1000 held=False slipped=False fall= 224.1 mm  max_disp=   3.9 mm  speed   1.59 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              ellipsoid            seed=1001 held=False slipped=False fall= 226.5 mm  max_disp=   0.5 mm  speed   0.17 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              ellipsoid            seed=1002 held=True  slipped=False fall=  20.6 mm  max_disp=   1.7 mm  speed   0.31 mm/s  tips moved  0.41 mm  friction used 0.02  capacity/load   1.8
+default              ellipsoid            seed=1003 held=False slipped=False fall= 223.5 mm  max_disp=   0.4 mm  speed   0.12 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              ellipsoid            seed=1004 held=True  slipped=False fall=   7.4 mm  max_disp=   5.0 mm  speed   0.44 mm/s  tips moved  0.00 mm  friction used 0.02  capacity/load   2.1
+default              ellipsoid            seed=1005 held=False slipped=False fall= 223.6 mm  max_disp=   0.4 mm  speed   0.14 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              ellipsoid            seed=1006 held=False slipped=False fall= 222.8 mm  max_disp=   0.9 mm  speed   0.38 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              ellipsoid            seed=1007 held=True  slipped=False fall=   6.2 mm  max_disp=   3.3 mm  speed   0.94 mm/s  tips moved  0.25 mm  friction used 0.03  capacity/load   2.2
+default              ellipsoid            seed=1008 held=False slipped=False fall= 223.0 mm  max_disp=   1.5 mm  speed   0.63 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              ellipsoid            seed=1009 held=False slipped=True  fall= 149.2 mm  max_disp=   9.7 mm
+default              flat_disk            seed=1000 held=False slipped=False fall= 234.6 mm  max_disp=   2.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              flat_disk            seed=1001 held=False slipped=True  fall=  41.8 mm  max_disp=  14.1 mm
+default              flat_disk            seed=1002 held=False slipped=True  fall=  28.0 mm  max_disp=  10.7 mm  speed  24.84 mm/s  tips moved  4.20 mm  friction used 0.19  capacity/load  54.4
+default              flat_disk            seed=1003 held=False slipped=False fall= 242.7 mm  max_disp=   0.2 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              flat_disk            seed=1004 held=False slipped=False fall= 220.2 mm  max_disp=   3.0 mm  speed   1.37 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              flat_disk            seed=1005 held=False slipped=False fall= 245.4 mm  max_disp=   0.2 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              flat_disk            seed=1006 held=False slipped=True  fall=  49.7 mm  max_disp=  10.6 mm  speed   6.13 mm/s  tips moved  0.72 mm  friction used 0.07  capacity/load  33.4
+default              flat_disk            seed=1007 held=False slipped=False fall= 239.5 mm  max_disp=   1.4 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              flat_disk            seed=1008 held=False slipped=True  fall=  47.0 mm  max_disp=  10.6 mm  speed   5.79 mm/s  tips moved  0.66 mm  friction used 0.05  capacity/load  30.3
+default              flat_disk            seed=1009 held=False slipped=True  fall=  39.6 mm  max_disp=  10.6 mm
+default              rod                  seed=1000 held=False slipped=True  fall=  84.5 mm  max_disp=  13.8 mm
+default              rod                  seed=1001 held=False slipped=True  fall=  70.7 mm  max_disp=  15.1 mm
+default              rod                  seed=1002 held=False slipped=False fall= 206.6 mm  max_disp=   0.3 mm  speed   0.03 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rod                  seed=1003 held=False slipped=False fall= 206.3 mm  max_disp=   0.2 mm  speed   0.02 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rod                  seed=1004 held=False slipped=True  fall=  72.0 mm  max_disp=  16.2 mm
+default              rod                  seed=1005 held=False slipped=False fall= 206.9 mm  max_disp=   1.8 mm  speed   0.73 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rod                  seed=1006 held=False slipped=False fall= 203.5 mm  max_disp=   0.8 mm  speed   0.21 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rod                  seed=1007 held=False slipped=False fall= 205.0 mm  max_disp=   0.3 mm  speed   0.01 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rod                  seed=1008 held=False slipped=False fall= 202.6 mm  max_disp=   0.3 mm  speed   0.01 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rod                  seed=1009 held=False slipped=True  fall=  62.4 mm  max_disp=  14.1 mm
+default              l_block              seed=1000 held=True  slipped=False fall=  49.0 mm  max_disp=   2.3 mm  speed   0.06 mm/s  tips moved  0.21 mm  friction used 0.02  capacity/load  92.4
+default              l_block              seed=1001 held=True  slipped=False fall=   8.7 mm  max_disp=   4.7 mm  speed   0.76 mm/s  tips moved  0.00 mm  friction used 0.25  capacity/load   1.2
+default              l_block              seed=1002 held=False slipped=True  fall=  23.2 mm  max_disp=  15.7 mm
+default              l_block              seed=1003 held=False slipped=True  fall=  53.2 mm  max_disp=  12.1 mm  speed   4.01 mm/s  tips moved  1.14 mm  friction used 0.06  capacity/load  37.9
+default              l_block              seed=1004 held=False slipped=False fall= 243.9 mm  max_disp=   1.9 mm  speed   0.40 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              l_block              seed=1005 held=True  slipped=False fall=  26.8 mm  max_disp=  11.0 mm  speed   0.30 mm/s  tips moved  0.24 mm  friction used 0.03  capacity/load  38.9
+default              l_block              seed=1006 held=False slipped=True  fall=  34.1 mm  max_disp=  12.3 mm
+default              l_block              seed=1007 held=False slipped=True  fall=  23.4 mm  max_disp=  13.0 mm
+default              l_block              seed=1008 held=True  slipped=False fall=  39.7 mm  max_disp=   9.3 mm  speed   1.58 mm/s  tips moved  4.02 mm  friction used 0.06  capacity/load 106.5
+default              l_block              seed=1009 held=False slipped=False fall= 245.7 mm  max_disp=   1.0 mm  speed   0.01 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1000 held=True  slipped=False fall=  48.5 mm  max_disp=   3.1 mm  speed   0.69 mm/s  tips moved  0.00 mm  friction used 0.01  capacity/load   1.9
+default              dumbbell             seed=1001 held=False slipped=False fall= 208.2 mm  max_disp=   3.6 mm  speed   1.53 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1002 held=False slipped=False fall= 207.3 mm  max_disp=   2.7 mm  speed   1.12 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1003 held=False slipped=False fall= 208.5 mm  max_disp=   0.3 mm  speed   0.02 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1004 held=False slipped=False fall= 211.7 mm  max_disp=   3.7 mm  speed   1.37 mm/s  tips moved  0.00 mm  friction used 0.03  capacity/load   1.0
+default              dumbbell             seed=1005 held=False slipped=False fall= 200.3 mm  max_disp=   0.6 mm  speed   0.24 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1006 held=False slipped=False fall= 199.0 mm  max_disp=   0.7 mm  speed   0.29 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1007 held=False slipped=False fall= 205.7 mm  max_disp=   8.1 mm  speed   3.35 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1008 held=False slipped=False fall= 200.9 mm  max_disp=   5.0 mm  speed   2.14 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1009 held=True  slipped=False fall=  45.8 mm  max_disp=   2.1 mm  speed   0.23 mm/s  tips moved  0.00 mm  friction used 0.01  capacity/load   1.9
+default              plus_cross           seed=1000 held=False slipped=True  fall=  33.2 mm  max_disp=   9.2 mm
+default              plus_cross           seed=1001 held=False slipped=True  fall=   5.9 mm  max_disp=   9.1 mm
+default              plus_cross           seed=1002 held=False slipped=True  fall=  16.9 mm  max_disp=   9.0 mm  speed   4.20 mm/s  tips moved  0.25 mm  friction used 0.12  capacity/load   3.2
+default              plus_cross           seed=1003 held=False slipped=False fall= 223.0 mm  max_disp=   1.1 mm  speed   0.06 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              plus_cross           seed=1004 held=False slipped=True  fall=  22.8 mm  max_disp=   9.0 mm  speed   7.22 mm/s  tips moved  0.00 mm  friction used 0.26  capacity/load   2.4
+default              plus_cross           seed=1005 held=False slipped=False fall= 221.0 mm  max_disp=   7.0 mm  speed   3.07 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              plus_cross           seed=1006 held=False slipped=False fall= 221.3 mm  max_disp=   3.1 mm  speed   0.83 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              plus_cross           seed=1007 held=False slipped=False fall= 221.3 mm  max_disp=   3.1 mm  speed   1.35 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              plus_cross           seed=1008 held=False slipped=False fall= 222.1 mm  max_disp=   4.9 mm  speed   1.91 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              plus_cross           seed=1009 held=False slipped=False fall= 222.3 mm  max_disp=   1.5 mm  speed   0.07 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              square_pyramid       seed=1000 held=False slipped=True  fall=  22.3 mm  max_disp=   7.9 mm
+default              square_pyramid       seed=1001 held=True  slipped=False fall=  22.3 mm  max_disp=   2.5 mm  speed   0.45 mm/s  tips moved  0.08 mm  friction used 0.04  capacity/load   1.5
+default              square_pyramid       seed=1002 held=False slipped=True  fall=  23.3 mm  max_disp=   6.0 mm
+default              square_pyramid       seed=1003 held=False slipped=True  fall=  21.2 mm  max_disp=   6.1 mm
+default              square_pyramid       seed=1004 held=False slipped=True  fall=  23.1 mm  max_disp=   6.0 mm  speed   4.80 mm/s  tips moved  0.05 mm  friction used 0.23  capacity/load   1.6
+default              square_pyramid       seed=1005 held=False slipped=True  fall=  25.9 mm  max_disp=   7.5 mm
+default              square_pyramid       seed=1006 held=False slipped=True  fall=  21.7 mm  max_disp=   6.0 mm
+default              square_pyramid       seed=1007 held=False slipped=True  fall=  27.3 mm  max_disp=   6.3 mm
+default              square_pyramid       seed=1008 held=False slipped=True  fall=  23.2 mm  max_disp=   6.0 mm
+default              square_pyramid       seed=1009 held=False slipped=True  fall=  22.6 mm  max_disp=   6.1 mm
+default              triangular_prism     seed=1000 held=False slipped=False fall= 251.1 mm  max_disp=   3.1 mm  speed   0.39 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              triangular_prism     seed=1001 held=True  slipped=False fall=  29.7 mm  max_disp=   5.3 mm  speed   0.86 mm/s  tips moved  0.13 mm  friction used 0.05  capacity/load   3.5
+default              triangular_prism     seed=1002 held=False slipped=True  fall=  24.7 mm  max_disp=   7.5 mm  speed   4.27 mm/s  tips moved  0.14 mm  friction used 0.23  capacity/load   1.5
+default              triangular_prism     seed=1003 held=False slipped=True  fall=  25.8 mm  max_disp=  10.8 mm
+default              triangular_prism     seed=1004 held=False slipped=True  fall=  51.5 mm  max_disp=   9.9 mm
+default              triangular_prism     seed=1005 held=False slipped=True  fall=  25.8 mm  max_disp=   7.6 mm
+default              triangular_prism     seed=1006 held=False slipped=True  fall=  24.6 mm  max_disp=   7.5 mm  speed   9.10 mm/s  tips moved  0.15 mm  friction used 0.44  capacity/load   1.0
+default              triangular_prism     seed=1007 held=False slipped=True  fall= 117.2 mm  max_disp=   7.7 mm
+default              triangular_prism     seed=1008 held=False slipped=True  fall=  27.2 mm  max_disp=   9.4 mm
+default              triangular_prism     seed=1009 held=False slipped=True  fall=  22.9 mm  max_disp=   7.6 mm
+default              hexagonal_prism      seed=1000 held=False slipped=True  fall=  21.9 mm  max_disp=   6.0 mm
+default              hexagonal_prism      seed=1001 held=True  slipped=False fall=  21.6 mm  max_disp=   5.4 mm  speed   1.86 mm/s  tips moved  0.17 mm  friction used 0.14  capacity/load   1.4
+default              hexagonal_prism      seed=1002 held=True  slipped=False fall=  23.9 mm  max_disp=   5.4 mm  speed   1.49 mm/s  tips moved  0.10 mm  friction used 0.08  capacity/load   1.5
+default              hexagonal_prism      seed=1003 held=False slipped=True  fall=  21.8 mm  max_disp=   6.1 mm
+default              hexagonal_prism      seed=1004 held=False slipped=True  fall=  22.8 mm  max_disp=   6.0 mm
+default              hexagonal_prism      seed=1005 held=False slipped=True  fall=  24.1 mm  max_disp=   6.1 mm
+default              hexagonal_prism      seed=1006 held=False slipped=True  fall=  21.7 mm  max_disp=   6.2 mm
+default              hexagonal_prism      seed=1007 held=False slipped=True  fall=  27.3 mm  max_disp=   6.1 mm
+default              hexagonal_prism      seed=1008 held=False slipped=True  fall=  24.3 mm  max_disp=   6.0 mm
+default              hexagonal_prism      seed=1009 held=False slipped=True  fall=  22.9 mm  max_disp=   6.1 mm
+== default: held 19/150
+
+  MISMATCH cube seed=1000: held False vs False, ep_len 164 vs 167, max_disp 0.006246 vs 0.007034
+  MISMATCH cube seed=1001: held False vs False, ep_len 460 vs 460, max_disp 0.000153 vs 0.000154
+  MISMATCH cube seed=1002: held False vs False, ep_len 258 vs 257, max_disp 0.006012 vs 0.006072
+  MISMATCH cube seed=1003: held False vs False, ep_len 177 vs 176, max_disp 0.006278 vs 0.006015
+  MISMATCH cube seed=1004: held False vs False, ep_len 208 vs 213, max_disp 0.006063 vs 0.006024
+  MISMATCH cube seed=1005: held False vs False, ep_len 172 vs 172, max_disp 0.006160 vs 0.006210
+  MISMATCH cube seed=1006: held False vs False, ep_len 164 vs 165, max_disp 0.007198 vs 0.009070
+  MISMATCH cube seed=1007: held False vs False, ep_len 170 vs 170, max_disp 0.006062 vs 0.006119
+  MISMATCH cube seed=1008: held False vs False, ep_len 173 vs 173, max_disp 0.006413 vs 0.006253
+  MISMATCH sphere seed=1006: held False vs False, ep_len 460 vs 460, max_disp 0.000268 vs 0.000268
+  MISMATCH sphere seed=1009: held False vs False, ep_len 460 vs 460, max_disp 0.000268 vs 0.000268
+  MISMATCH rectangular_prism seed=1000: held False vs False, ep_len 288 vs 288, max_disp 0.010507 vs 0.010528
+  MISMATCH rectangular_prism seed=1002: held False vs False, ep_len 224 vs 283, max_disp 0.010777 vs 0.010787
+  MISMATCH rectangular_prism seed=1003: held False vs False, ep_len 460 vs 460, max_disp 0.000144 vs 0.000144
+  MISMATCH rectangular_prism seed=1004: held False vs False, ep_len 372 vs 378, max_disp 0.010528 vs 0.010501
+  MISMATCH rectangular_prism seed=1007: held False vs False, ep_len 207 vs 161, max_disp 0.010569 vs 0.014093
+  MISMATCH rectangular_prism seed=1008: held False vs False, ep_len 188 vs 187, max_disp 0.010800 vs 0.010587
+  MISMATCH rectangular_prism seed=1009: held False vs False, ep_len 168 vs 169, max_disp 0.010702 vs 0.011051
+  MISMATCH cylindrical_prism seed=1000: held False vs False, ep_len 368 vs 236, max_disp 0.009045 vs 0.009032
+  MISMATCH cylindrical_prism seed=1001: held False vs False, ep_len 302 vs 267, max_disp 0.009036 vs 0.009030
+  MISMATCH cylindrical_prism seed=1002: held False vs False, ep_len 241 vs 219, max_disp 0.009193 vs 0.009307
+  MISMATCH cylindrical_prism seed=1003: held False vs False, ep_len 226 vs 227, max_disp 0.009187 vs 0.009017
+  MISMATCH cylindrical_prism seed=1004: held False vs False, ep_len 325 vs 319, max_disp 0.009034 vs 0.009023
+  MISMATCH cylindrical_prism seed=1005: held False vs False, ep_len 199 vs 209, max_disp 0.009052 vs 0.009065
+  MISMATCH cylindrical_prism seed=1006: held False vs False, ep_len 203 vs 202, max_disp 0.009132 vs 0.009086
+  MISMATCH cylindrical_prism seed=1007: held False vs False, ep_len 194 vs 162, max_disp 0.009174 vs 0.009547
+  MISMATCH cylindrical_prism seed=1008: held False vs False, ep_len 258 vs 259, max_disp 0.009011 vs 0.009103
+  MISMATCH cylindrical_prism seed=1009: held False vs False, ep_len 202 vs 202, max_disp 0.009348 vs 0.009279
+  MISMATCH capsule seed=1000: held True vs True, ep_len 460 vs 460, max_disp 0.008422 vs 0.008422
+  MISMATCH capsule seed=1002: held False vs False, ep_len 269 vs 285, max_disp 0.012023 vs 0.012019
+  MISMATCH capsule seed=1003: held False vs False, ep_len 287 vs 260, max_disp 0.012026 vs 0.012021
+  MISMATCH capsule seed=1004: held False vs False, ep_len 441 vs 441, max_disp 0.012033 vs 0.012025
+  MISMATCH capsule seed=1006: held True vs True, ep_len 460 vs 460, max_disp 0.008723 vs 0.008785
+  MISMATCH capsule seed=1008: held False vs False, ep_len 460 vs 460, max_disp 0.003918 vs 0.004124
+  MISMATCH capsule seed=1009: held True vs True, ep_len 460 vs 460, max_disp 0.008640 vs 0.008573
+  MISMATCH ellipsoid seed=1002: held True vs True, ep_len 460 vs 460, max_disp 0.001746 vs 0.001754
+  MISMATCH ellipsoid seed=1006: held False vs False, ep_len 460 vs 460, max_disp 0.000922 vs 0.000922
+  MISMATCH ellipsoid seed=1009: held False vs False, ep_len 161 vs 161, max_disp 0.009722 vs 0.010020
+  MISMATCH flat_disk seed=1001: held False vs False, ep_len 170 vs 170, max_disp 0.014112 vs 0.014108
+  MISMATCH flat_disk seed=1002: held False vs False, ep_len 285 vs 281, max_disp 0.010741 vs 0.010850
+  MISMATCH flat_disk seed=1004: held False vs False, ep_len 460 vs 460, max_disp 0.003022 vs 0.003069
+  MISMATCH flat_disk seed=1006: held False vs False, ep_len 350 vs 356, max_disp 0.010623 vs 0.010510
+  MISMATCH flat_disk seed=1008: held False vs False, ep_len 326 vs 325, max_disp 0.010551 vs 0.010533
+  MISMATCH flat_disk seed=1009: held False vs False, ep_len 188 vs 188, max_disp 0.010592 vs 0.010625
+  MISMATCH l_block seed=1000: held True vs True, ep_len 460 vs 460, max_disp 0.002338 vs 0.002220
+  MISMATCH l_block seed=1003: held False vs False, ep_len 460 vs 452, max_disp 0.012051 vs 0.012032
+  MISMATCH l_block seed=1005: held True vs True, ep_len 460 vs 460, max_disp 0.011019 vs 0.011065
+  MISMATCH l_block seed=1006: held False vs False, ep_len 195 vs 194, max_disp 0.012346 vs 0.012232
+  MISMATCH l_block seed=1007: held False vs False, ep_len 189 vs 190, max_disp 0.013000 vs 0.012027
+  MISMATCH l_block seed=1008: held True vs True, ep_len 460 vs 460, max_disp 0.009294 vs 0.008770
+  MISMATCH dumbbell seed=1009: held True vs True, ep_len 460 vs 460, max_disp 0.002141 vs 0.002141
+  MISMATCH plus_cross seed=1000: held False vs False, ep_len 195 vs 199, max_disp 0.009244 vs 0.009025
+  MISMATCH plus_cross seed=1004: held False vs False, ep_len 330 vs 335, max_disp 0.009005 vs 0.009072
+  MISMATCH plus_cross seed=1005: held False vs False, ep_len 460 vs 413, max_disp 0.006977 vs 0.009009
+  MISMATCH plus_cross seed=1008: held False vs False, ep_len 460 vs 460, max_disp 0.004856 vs 0.004860
+Reproduction of ../../Data/rl_seed3_dev_deterministic.jsonl: 95/150 trials match

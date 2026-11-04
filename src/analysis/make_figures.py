@@ -55,22 +55,14 @@ PREREGISTERED_SECTION = ('results.md, section "Pre-registered evaluation rules f
 # ---------------------------------------------------------------------------
 # RESULTS.MD-ONLY NUMBERS -- everything here was hand-copied from
 # src/training/results.md because no result file records it. Nothing else in
-# this script comes from results.md. The rl_seed1 row is drawn with a hollow
-# marker so it can't be mistaken for recorded per-trial data, and is excluded
-# from the per-object figure.
+# this script comes from results.md.
 # ---------------------------------------------------------------------------
 BEST_SEED_LABEL = "RL seed 1: best of 3 seeds, deterministic"
 RESULTS_MD_ONLY = {
-    "rl_seed1": {
-        "label": BEST_SEED_LABEL,
-        "held": 29,
-        "n": 45,
-        "slipped": 5,
-        "dropped": 11,
-        "seeds": "0-2",
-        "policy": "Data/ppo_slip_policy_latest.zip (300,224 steps, deterministic)",
-        "source": 'results.md, section "THE real RL closed-loop number -- 64.4%, '
-                  'with a clean win pattern and one new, concentrated failure mode"',
+    "rl_stochastic_gap": {
+        "points": "7-14",
+        "source": 'results.md, section "RL on the locked set, 2.2% check and deterministic '
+                  'vs. stochastic"',
     },
     "rl_training_launches": {
         "seed 1": 8,
@@ -100,34 +92,37 @@ HORIZONS = RESULTS_MD_ONLY["horizons"]
 LOCKED_PRIMARY_SEEDS = RESULTS_MD_ONLY["locked_primary_seeds"]["seeds"]
 RL_TOTAL_STEPS = HORIZONS["rl_1500"]["total"]
 
-DROP_TAG = {True: "drops count as failures", False: "no formation-drop check"}
+DROP_TAG = {True: "falls past 5 cm count as failures", False: "no formation-drop check"}
 DROP_TAG_SHORT = {True: "drops = failure", False: "no drop check"}
 
-# The 2300-step and locked RL entries are slots: those runs haven't happened and
-# their paths are placeholders, so point them at the real files when they exist.
 # A 2300-step file only counts if every row has dropped_during_formation, the
 # same drop test RL uses, because that is what makes it comparable with RL.
+# expected_held counts all 1,005 trials, though these entries plot seeds 3-66.
 INPUTS = [
     {"key": "a2300", "label": "Hand-tuned Model A", "group": "hand_a", "fmt": "jsonl",
      "path": "Data/handtuned_modelA_2300step_results.jsonl",
-     "expected_trials": 1005, "expected_held": None, "horizon": "hand_2300", "counts_drops": True,
+     "expected_trials": 1005, "expected_held": 190, "horizon": "hand_2300", "counts_drops": True,
      "primary_seeds": LOCKED_PRIMARY_SEEDS, "expected_config": {"max_steps": 2300}},
     {"key": "b2300", "label": "Hand-tuned Model B", "group": "hand_b", "fmt": "jsonl",
      "path": "Data/handtuned_modelB_2300step_results.jsonl",
-     "expected_trials": 1005, "expected_held": None, "horizon": "hand_2300", "counts_drops": True,
+     "expected_trials": 1005, "expected_held": 194, "horizon": "hand_2300", "counts_drops": True,
      "primary_seeds": LOCKED_PRIMARY_SEEDS, "expected_config": {"max_steps": 2300}},
     {"key": "rl_seed1_locked", "label": BEST_SEED_LABEL, "group": "rl", "fmt": "jsonl",
      "column_label": "RL seed 1:\nbest of 3 seeds,\ndeterministic",
      "path": "Data/rl_seed1_1005trial_results.jsonl",
-     "expected_trials": 1005, "expected_held": None, "horizon": "rl_1500", "counts_drops": True,
+     "expected_trials": 1005, "expected_held": 617, "horizon": "rl_1500", "counts_drops": True,
      "primary_seeds": LOCKED_PRIMARY_SEEDS,
      "expected_config": {"max_steps": 1500, "deterministic": True}},
-    {"key": "rl_seed2", "label": "RL seed 2", "group": "rl", "fmt": "log",
-     "path": "Data/_seedcheck_eval_output.log",
-     "expected_trials": 45, "expected_held": 16, "horizon": "rl_1500", "counts_drops": True},
-    {"key": "rl_seed3", "label": "RL seed 3", "group": "rl", "fmt": "log",
-     "path": "Data/_seed3_eval_output.log",
-     "expected_trials": 45, "expected_held": 8, "horizon": "rl_1500", "counts_drops": True},
+    {"key": "rl_seed2_locked", "label": "RL seed 2", "group": "rl", "fmt": "jsonl",
+     "path": "Data/rl_seed2_1005trial_results.jsonl",
+     "expected_trials": 1005, "expected_held": 421, "horizon": "rl_1500", "counts_drops": True,
+     "primary_seeds": LOCKED_PRIMARY_SEEDS,
+     "expected_config": {"max_steps": 1500, "deterministic": True}},
+    {"key": "rl_seed3_locked", "label": "RL seed 3", "group": "rl", "fmt": "jsonl",
+     "path": "Data/rl_seed3_1005trial_results.jsonl",
+     "expected_trials": 1005, "expected_held": 152, "horizon": "rl_1500", "counts_drops": True,
+     "primary_seeds": LOCKED_PRIMARY_SEEDS,
+     "expected_config": {"max_steps": 1500, "deterministic": True}},
     {"key": "a45", "label": "Hand-tuned Model A", "group": "hand_a", "fmt": "jsonl",
      "path": "Data/closed_loop_scenes/batch_results.jsonl",
      "expected_trials": 45, "expected_held": 18, "horizon": "hand_2500", "counts_drops": False},
@@ -144,11 +139,11 @@ INPUTS = [
 
 # Conditions by horizon, RL's first. Figures 1 and 3 share this grouping.
 HORIZON_GROUPS = [
-    (2300, ["a2300", "b2300", "rl_seed1", "rl_seed2", "rl_seed3", "rl_seed1_locked"]),
+    (2300, ["a2300", "b2300", "rl_seed1_locked", "rl_seed2_locked", "rl_seed3_locked"]),
     (2500, ["a45", "b45"]),
     (1500, ["a1005", "b1005"]),
 ]
-RL_SEED_KEYS = ("rl_seed1", "rl_seed2", "rl_seed3")
+RL_SEED_KEYS = ("rl_seed1_locked", "rl_seed2_locked", "rl_seed3_locked")
 RL_REFERENCE_KEYS = ("a2300", "b2300")
 HOLDOUT_OBJECTS = {"cone", "cylindrical_prism", "plus_cross", "sphere"}
 N_OBJECTS = 15
@@ -358,15 +353,6 @@ def load_conditions():
         for w in warnings:
             print(f"[input] {spec['key']:<16} WARNING   {w}")
 
-    md = RESULTS_MD_ONLY["rl_seed1"]
-    conds["rl_seed1"] = dict(
-        new_condition({"key": "rl_seed1", "label": md["label"], "group": "rl",
-                       "horizon": "rl_1500", "counts_drops": True}),
-        status="results_md", n=md["n"], held=md["held"], slipped=md["slipped"],
-        dropped=md["dropped"], seeds_shown=md["seeds"], source=md["source"],
-        n_all=md["n"], held_all=md["held"])
-    print(f"[input] {'rl_seed1':<16} MD ONLY   {md['label']}: {md['held']}/{md['n']} held, no "
-          f"per-trial file; from {md['source']}")
     check_thresholds(conds)
     return conds
 
@@ -387,7 +373,7 @@ def check_thresholds(conds):
 
 
 def is_plotted(cond):
-    return cond["status"] in ("ok", "results_md")
+    return cond["status"] == "ok"
 
 
 def horizon_of(cond):
@@ -459,13 +445,11 @@ def style_percent_axis(ax, n_rows):
     ax.tick_params(axis="x", length=0, colors=SECONDARY, labelsize=9)
 
 
-def draw_interval(ax, y, rate, lo, hi, color, hollow=False, marker="o"):
+def draw_interval(ax, y, rate, lo, hi, color, marker="o"):
     ax.plot([lo, hi], [y, y], color=color, linewidth=2, solid_capstyle="round",
             zorder=3, clip_on=False)
     ax.plot([rate], [y], marker=marker, markersize=9, zorder=4, clip_on=False,
-            markerfacecolor=SURFACE if hollow else color,
-            markeredgecolor=color if hollow else SURFACE,
-            markeredgewidth=2 if hollow else 1.5)
+            markerfacecolor=color, markeredgecolor=SURFACE, markeredgewidth=1.5)
 
 
 def draw_row_label(ax, y, title, detail):
@@ -504,10 +488,9 @@ def draw_footer(fig, text):
              linespacing=1.4)
 
 
-def dot_handle(color, label, hollow=False, marker="o"):
+def dot_handle(color, label, marker="o"):
     return Line2D([0], [0], color=color, linewidth=2, marker=marker, markersize=8, label=label,
-                  markerfacecolor=SURFACE if hollow else color,
-                  markeredgecolor=color if hollow else SURFACE)
+                  markerfacecolor=color, markeredgecolor=SURFACE)
 
 
 def save_figure(fig, name):
@@ -550,8 +533,7 @@ def fig1_closed_loop(conds):
             if is_plotted(cond):
                 rate, lo, hi = rate_stats(cond)
                 draw_row_label(ax, y, cond["label"], f"n={cond['n']:,}, seeds {cond['seeds_shown']}")
-                draw_interval(ax, y, rate, lo, hi, SERIES_COLOR[cond["group"]],
-                              hollow=cond["status"] == "results_md")
+                draw_interval(ax, y, rate, lo, hi, SERIES_COLOR[cond["group"]])
                 draw_row_value(ax, y, f"{rate:.1f}%  {cond['held']:,}/{cond['n']:,}", tag)
             else:
                 rate = lo = hi = None
@@ -586,12 +568,15 @@ def fig1_closed_loop(conds):
     draw_header(fig, "Closed-loop grasp success by horizon",
                 "Dot = share of trials held. Line = Wilson 95% interval. Compare rows only within "
                 "a panel: each horizon is a different test.")
-    draw_legend(fig, [dot_handle(SERIES_COLOR[g], SERIES_NAME[g]) for g in SERIES_COLOR]
-                + [dot_handle(SERIES_COLOR["rl"], "RL, results.md only (no per-trial file)", hollow=True)])
+    draw_legend(fig, [dot_handle(SERIES_COLOR[g], SERIES_NAME[g]) for g in SERIES_COLOR])
+    a2300 = conds["a2300"]
+    drop_note = ("" if not is_plotted(a2300) else
+                 f" For example, Model A at 2,300 steps is {100 * a2300['held'] / a2300['n']:.1f}% with "
+                 f"the check and {100 * (a2300['n'] - a2300['slipped']) / a2300['n']:.1f}% without it.")
     draw_footer(fig, "Horizons: results.md, \"Baseline comparability check\" and \"Pre-registered "
                      "evaluation rules\". Rows with no mark have no accepted result; nothing is estimated.\n"
-                     "Without a formation-drop check, a trial already dropped by the end of settle "
-                     "could score as held. This has not been measured.")
+                     f"Without a formation-drop check, an object that fell during formation can score as held."
+                     f"{drop_note}")
     save_figure(fig, "fig1_closed_loop_success")
     write_csv("fig1_closed_loop_success",
               ["total_steps_group", "condition", "status", "status_detail", "n", "held", "rate_pct",
@@ -607,9 +592,9 @@ def fig1_closed_loop(conds):
 # --- Figure 2: RL seed spread ----------------------------------------------
 
 def fig2_rl_seed_spread(conds):
-    """Uses the 45-trial eval of each seed only, so all three seeds and the
-    mean sit on one n. A hand-tuned reference line is drawn only when its
-    horizon and drop rule match RL's; until those runs exist, there is none."""
+    """Uses the locked set for every seed, so all three and the mean sit on one
+    n. A hand-tuned reference line is drawn only when its horizon and drop rule
+    match RL's."""
     seeds = [conds[k] for k in RL_SEED_KEYS if is_plotted(conds[k])]
     if len(seeds) < 2:
         print(f"[fig2] SKIPPED: needs at least 2 RL seeds, found {len(seeds)}")
@@ -643,7 +628,7 @@ def fig2_rl_seed_spread(conds):
     for y, cond in enumerate(seeds):
         rate, lo, hi = rate_stats(cond)
         draw_row_label(ax, y, cond["label"], f"n={cond['n']}, seeds {cond['seeds_shown']}")
-        draw_interval(ax, y, rate, lo, hi, color, hollow=cond["status"] == "results_md")
+        draw_interval(ax, y, rate, lo, hi, color)
         draw_row_value(ax, y, f"{rate:.1f}%  {cond['held']}/{cond['n']}")
         rows.append(csv_row(cond["label"], "seed", cond, rate, lo, hi, None, cond["source"]))
 
@@ -669,18 +654,19 @@ def fig2_rl_seed_spread(conds):
     launches = RESULTS_MD_ONLY["rl_training_launches"]
     draw_header(fig, "RL success varies widely across training seeds",
                 f"{horizon['total']:,} total steps: {horizon_summary(horizon['total'])}. "
-                f"{DROP_TAG[True].capitalize()}. Dot = share of 45 trials held; line = Wilson 95% interval.")
-    handles = [dot_handle(color, "RL seed"), dot_handle(color, "RL seed, results.md only", hollow=True),
-               dot_handle(color, "Mean of seeds", marker="D")]
+                f"{DROP_TAG[True].capitalize()}. Dot = share of trials held; line = Wilson 95% interval.")
+    handles = [dot_handle(color, "RL seed"), dot_handle(color, "Mean of seeds", marker="D")]
     handles += [Line2D([0], [0], color=SERIES_COLOR[c["group"]], linewidth=1.5, label=c["label"])
                 for c in references]
     draw_legend(fig, handles)
-    reference_note = ("Reference lines use the same horizon and drop rule as RL, on more trials."
+    reference_note = ("Reference lines use the same horizon, drop rule and trials as RL."
                       if references else
                       "No reference line: no hand-tuned run exists yet at this horizon with this drop rule.")
     draw_footer(fig, "Same reward, observations, and hyperparameters, but training procedure differed: "
                      f"seeds 1, 2, and 3 took {launches['seed 1']}, {launches['seed 2']}, and "
-                     f"{launches['seed 3']} process launches.\n{reference_note}")
+                     f"{launches['seed 3']} process launches.\n{reference_note} RL uses the policy's "
+                     f"mean action; sampled actions held {RESULTS_MD_ONLY['rl_stochastic_gap']['points']} "
+                     "points fewer on the dev set.")
     save_figure(fig, "fig2_rl_seed_spread")
     write_csv("fig2_rl_seed_spread",
               ["item", "kind", "n", "held", "rate_pct", "wilson_lo_pct", "wilson_hi_pct", "sd_pct",
@@ -701,8 +687,9 @@ def fig3_per_object(conds):
         print("[fig3] SKIPPED: no per-trial input passed its provenance check")
         return
 
-    # Sort by the largest sample, since 3-trial rates are too coarse to rank on.
-    anchor = max((c for _, group in groups for c in group), key=lambda c: c["n"])
+    # Sort by the largest sample at RL's horizon, since 3-trial rates are too
+    # coarse to rank on and the 1500-step runs have no drop check.
+    anchor = max(groups[0][1], key=lambda c: c["n"])
     objects = sorted(anchor["per_object"],
                      key=lambda o: (-anchor["per_object"][o][0] / anchor["per_object"][o][1], o))
     cmap = LinearSegmentedColormap.from_list("sequential_blue", SEQUENTIAL_BLUE)
@@ -748,7 +735,7 @@ def fig3_per_object(conds):
         x += gap
 
     draw_header(fig, "Grasp success per object, by horizon",
-                "Cells show trials held / trials run, sorted by the largest sample. Compare within "
+                f"Cells show trials held / trials run, sorted by {anchor['label']}. Compare within "
                 "a horizon only. 3-trial cells can only read 0, 33, 67, or 100%.")
     cax = fig.add_axes([0.20, 0.72 / height, 0.24, 0.14 / height])
     colorbar = fig.colorbar(ScalarMappable(Normalize(0, 100), cmap), cax=cax, orientation="horizontal")
@@ -757,17 +744,15 @@ def fig3_per_object(conds):
     colorbar.ax.tick_params(length=0, labelsize=8.5, colors=SECONDARY)
     colorbar.outline.set_visible(False)
     fig.text(0.46, 0.79 / height, "share of trials held", fontsize=8.5, color=SECONDARY, va="center")
-    draw_footer(fig, "Drops = failure: a formation drop counts against the trial. No drop check: a "
-                     "trial already dropped by the end of settle could score as held; not measured.")
+    draw_footer(fig, "Drops = failure: a fall past 5 cm during formation counts against the trial. "
+                     "No drop check: an object that fell during formation can score as held.")
     save_figure(fig, "fig3_per_object_success")
     write_csv("fig3_per_object_success",
               ["object", "holdout", "condition", "condition_n", "seeds_shown", "total_steps",
                "counts_formation_drops_as_failures", "held", "trials", "rate_pct"], rows)
 
-    left_out = [k for _, keys in HORIZON_GROUPS for k in keys
-                if conds[k]["status"] not in ("ok", "results_md")]
+    left_out = [k for _, keys in HORIZON_GROUPS for k in keys if conds[k]["status"] != "ok"]
     print(f"[fig3] Not shown, no accepted per-trial data: {left_out}")
-    print(f"[fig3] Not shown: {BEST_SEED_LABEL}, n=45. Its only per-object table is in results.md.")
 
 
 def readable_ink(fill):

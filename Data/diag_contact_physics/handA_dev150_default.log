@@ -1,0 +1,3 @@
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+default                no rule 77/150   10 cm 58/150   5 cm 35/150
+Reproduction of ../../Data/handtuned_modelA_2300step_results.jsonl: 0/0 trials match

@@ -1,0 +1,10 @@
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+default                no rule 7/15   10 cm 5/15   5 cm 4/15
+  MISMATCH cone seed=0: slipped True vs True, corrections 78 vs 77, max_disp 0.014377 vs 0.014231
+  MISMATCH cylindrical_prism seed=0: slipped True vs True, corrections 258 vs 258, max_disp 0.180602 vs 0.180425
+  MISMATCH capsule seed=0: slipped False vs False, corrections 9 vs 7, max_disp 0.009717 vs 0.008965
+  MISMATCH ellipsoid seed=0: slipped True vs True, corrections 251 vs 251, max_disp 0.203171 vs 0.203831
+  MISMATCH rod seed=0: slipped False vs False, corrections 1 vs 1, max_disp 0.012361 vs 0.012368
+  MISMATCH l_block seed=0: slipped True vs True, corrections 9 vs 7, max_disp 0.020352 vs 0.020440
+  MISMATCH triangular_prism seed=0: slipped True vs True, corrections 12 vs 12, max_disp 0.022414 vs 0.022413
+Reproduction of ../../Data/handtuned_modelA_2300step_results.jsonl: 8/15 trials match

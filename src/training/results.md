@@ -3042,3 +3042,21 @@ its scale. Not started -- reporting first, per instructions.
 - **Grip strength isn't the limit.** Fingertip contact forces reach 20-70 N on objects under 1.5 N, which contradicts the "actuator saturation limits the grip" explanation in earlier notes. That explanation should not go in the paper as is.
 - **The reward barely rewards holding.** With gamma 0.99, the +20 hold bonus is worth 0.98 at the start of the pull and 0.20 at the start of a trial, against about 650 of formation reward per trial. Steady displacement above about 4.4 mm values worse than slipping immediately. Within a policy, held trials still score better in the pull than slipped ones (-20.7 vs. -56.4 for seed 1).
 - **Correction to what I reported today:** I said the later steps of `_chain2_nov4.sh` would fail because of CRLF line endings. They ran correctly and their results are valid, 150 rows each. I also wrote a replacement chain from that wrong belief. It was stopped before it started, which prevented duplicate rows, and removed. `_chain4_nov4.sh` and `_chain5_nov4.sh` run only what hadn't run.
+
+## Decision: elliptic cone with `impratio` 10 is the primary benchmark (recorded before any fresh-seed result was read)
+
+- **Date:** 2026-11-04, 8:12 pm EST. The user delegated this choice ("choose whatever you think is best for the benchmark") and I made it. At this point no fresh-seed row had been read under any setting, and seed 1 on the dev set was the only elliptic result read.
+- **The choice:** `cone="elliptic" impratio="10"`. Everything else in the scene, trial protocol, scoring and evaluation rules stays as it is. Default settings are reported beside it in every table of held rates. Noslip stays a sensitivity result.
+- **Why not default:** under default settings the benchmark partly measures a solver artifact. At full load, objects move at a median 1.18 mm/s while contacts use 3% of their friction limit (seed 1, 15 trials), which is the slow slippage MuJoCo documents. This project never chose those settings. The scene inherits them.
+- **Why elliptic and not noslip:** MuJoCo's modeling guide recommends it first and calls noslip "just an adhoc mechanism". Allegro, Shadow Hand and Robotiq 2F-85 in MuJoCo Menagerie set exactly these values. On the one controller run under both, noslip held slightly more (122 vs. 118 of 150, p = 0.56), so elliptic was not picked for its score.
+- **Fixed now, so later results can't steer it:**
+  - Elliptic stays primary if noslip scores higher on fresh seeds, and whether or not anything reaches 70%.
+  - `impratio` is not tuned. The `impratio` 3 and 100 runs are sensitivity results and can't change this choice.
+  - "Pre-registered evaluation rules for all remaining RL comparisons" still applies: all seeds count, the locked set under this setting is never used to choose, and a single best seed is never the headline.
+- **What would reverse it, fixed before the fresh-seed results are read.** Either of these on the fresh-seed elliptic runs puts default back as primary, with elliptic reported as a sensitivity result:
+  - **The gain doesn't replicate:** at 5 cm, fewer than 3 of the 4 controllers have a 95% Wilson lower bound above their locked-set default rate (seed 1 61.2%, seed 2 42.2%, seed 3 15.0%, hand-tuned A 18.8%).
+  - **Instability:** solver warnings in those runs' logs.
+- **Must be disclosed wherever this setting is reported:** it was proposed after scores had been seen on a much-used dev set. Any policy or TCN trained on default physics is labelled that way. Pad friction doesn't predict holding on the 150 dev trials, so this shrinks a documented artifact and doesn't prove the setting physically correct.
+- **What this changes today:** no file, policy or stored result. Default-physics results stay valid as default-physics results. The real scene file is unchanged. Runs so far set the option in memory, and a scene copy with the one `<option>` line reproduced 15 of 15 of those rows.
+- **Final figures:** one read of the locked set (seeds 3-66) under this setting, once the finalists are settled, paired with the existing default rows. Fresh-seed results check this choice and are not the final figures.
+- **Still the user's decisions:** retraining under this setting, the TCN under this setting, the evaluation mode, and the headline.

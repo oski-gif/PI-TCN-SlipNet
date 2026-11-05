@@ -1,10 +1,10 @@
 # Path to 70%: code review and diagnostics, Nov 4, 2026
 
-**Status:** evening of Nov 4. Read-only review. No reward, observation, action, controller, physics, benchmark or training setting was changed, and no stored result was touched. Every such change is listed under "Waiting for your decision". All numbers are from the 150-trial dev set unless marked. Fresh-seed runs are in progress and their results will be added here.
+**Status:** evening of Nov 4. You delegated the benchmark choice, and at 8:12 pm I chose elliptic with `impratio` 10, before any fresh-seed result was read. See "Decided: the benchmark". Nothing has been run as a final result under it yet. No reward, observation, action, controller or training setting was changed, no stored result was touched, and the real scene file is unchanged. All numbers are from the 150-trial dev set unless marked. Fresh-seed runs are in progress and their results will be added here.
 
 ## Where this stands
 
-1. **Contact settings move results more than anything else we have tried.** The same policies, not retrained, go from 57 / 37 / 13% to 81 / 67 / 41% at 5 cm with a stricter contact solver setting, and hand-tuned A goes from 23 to 44%. Seed 1 gets the same result from a second, independent setting (79%), the one MuJoCo recommends first and three official hand and gripper models use. **Not adopted. This is the main decision for you.**
+1. **Contact settings move results more than anything else we have tried.** The same policies, not retrained, go from 57 / 37 / 13% to 81 / 67 / 41% at 5 cm with a stricter contact solver setting, and hand-tuned A goes from 23 to 44%. Seed 1 gets the same result from a second, independent setting (79%), the one MuJoCo recommends first and three official hand and gripper models use. **You asked me to choose the benchmark, and I chose that second setting, with checks fixed in advance. See "Decided: the benchmark".**
 2. **Longer rollouts made training worse.** Pre-registered verdict: worse, at 10.0 / 0.0 / 2.7%. Nothing further depends on that run.
 3. **The TCN changes no RL outcome.** With its signal replaced by 0, the same trials are held: 0 of 450 change.
 4. **A fixed script matches the best RL policy, under both settings measured so far.** With no policy, tactile input or TCN, closing four fingers fast and leaving the middle finger open holds 86 of 150 under default settings, the same as RL seed 1, and 118 under noslip against seed 1's 122 (paired 7 vs. 11, p = 0.48). Adding the middle finger under default settings drops it to 34. So RL's lead over hand-tuned may come from that grip, not from learned feedback.
@@ -48,7 +48,7 @@ Longer rollouts, dev set, deterministic, 5 cm: 10.0 / 0.0 / 2.7%, mean 4.2, agai
 - **A reviewer can say you changed the physics until you reached 70%.** The defense is the documented mechanism, reporting default beside it everywhere, saying the order of events plainly, and not tuning the setting further. Searching `impratio` for the best score would destroy that defense.
 - **My physics test failed.** I predicted holding would rise with pad friction under noslip. It doesn't on these 150 trials (seed 1: 84.0% low friction, 78.7% high). Friction doesn't seem to be the limit in these grips: capacity is usually 20-50x load, and about half of the contact force goes through links and palm, whose friction is fixed at 1.0. So this doesn't prove the stricter setting is physically right, only that a documented artifact shrinks.
 - **The policies and TCN were trained on default physics.** Nothing here shows what training under stricter settings gives.
-- **Noslip has its own warning.** MuJoCo calls it "just an adhoc mechanism" and has "seen some instabilities in models with more complex interactions among multiple contacts". That is why I lean toward elliptic with `impratio` 10.
+- **Noslip has its own warning.** MuJoCo calls it "just an adhoc mechanism" and has "seen some instabilities in models with more complex interactions among multiple contacts". That is why I chose elliptic with `impratio` 10 over noslip.
 - **Elliptic has only been run on seed 1.** The other controllers are running now.
 
 ## What this means for the paper
@@ -61,20 +61,26 @@ These are facts the paper has to reflect however you frame it. `reports/paper_ou
 - **Methods wording is wrong for the force channels.** `*_normal` and `*_tangential` don't measure normal and tangential force: axis 2 reads a median 18% of the true contact force. TCN results stay valid, but the description doesn't, and a Phase 2 friction-cone loss on these channels would be wrong.
 - **A possible new main finding, if you want it:** contact settings moved every controller by 20-30 points, more than any detector or controller difference here. That fits a paper about measurement and rigor, and it is more defensible than a percentage.
 
+## Decided: the benchmark
+
+You asked me to choose. **Elliptic with `impratio` 10 is primary, default is reported beside it in every table, and noslip stays a sensitivity result.** I recorded this in `results.md` at 8:12 pm on Nov 4, before reading any fresh-seed result, so those results can't steer it.
+
+- **Why:** default settings make the benchmark partly measure a solver artifact, and this is the setting MuJoCo's guide recommends first. Noslip scored about the same on the one controller run under both, so elliptic wasn't picked for its score.
+- **Fixed in advance:** elliptic stays primary if noslip scores higher, and whether or not anything reaches 70%. `impratio` doesn't get tuned.
+- **What would reverse it:** default goes back to primary if fewer than 3 of the 4 controllers have a fresh-seed 95% lower bound above their locked default rate at 5 cm (61.2, 42.2, 15.0 and 18.8%), or if solver warnings appear in those runs' logs.
+- **What the paper must say:** the setting was proposed after scores had been seen, what each controller was trained on, and that this shrinks an artifact without proving the setting physically correct.
+- **What doesn't change:** all seeds still count, and a single best seed still can't be the headline. No file, policy or stored result has changed, and the default results still stand, so you can overrule this at any time before submission.
+
 ## Waiting for your decision
 
 Ranked by how much depends on each. I have done none of these.
 
-1. **Which contact settings are the benchmark?**
-   - (a) Keep default as primary, and report stricter settings as a sensitivity result. Safe, but there is no 70% claim.
-   - (b) **My recommendation, if fresh seeds confirm it:** make elliptic with `impratio` 10 primary, report default beside it in every table, and state the order of events. Don't tune it further.
-   - (c) Noslip as primary. It scores about the same, but it's the weaker choice given MuJoCo's own warning.
-2. **If you switch, what gets rerun?** The locked set stays unrun under any new setting, so it can give one final read. Each controller takes about 4 hours per 1,005 trials if four run together. Hand-tuned B also needs rerunning, because only A has been measured here.
-3. **Retrain under the new settings?** I recommend 3 seeds with nothing else changed, pre-registered, about 80 minutes per seed. Policies should be trained on the physics they are tested on.
-4. **How to reduce the spread between seeds, if it remains.** Options, none tested: fix the reward so holding pays, lower the exploration noise (action std only falls from 1.0 to about 0.9), add finger closure and time to the observation, or learn a residual on top of the fixed grip, so that every seed starts from a working grip. The last looks most likely to give consistency, and it would test whether learning adds anything beyond the grip, but it is a controller change and it changes what the paper is about.
-5. **The TCN under new settings.** It was trained on default-physics data. Regenerating 20,000 trials and retraining is possible but probably not needed by Nov 8. It could be disclosed instead, with regeneration planned for Phase 2.
-6. **Sensor channel fix.** Use touch for normal force and direct contact forces for tangential. This means regenerating data, so it belongs in Phase 2. For Nov 8, only the Methods wording needs to change.
-7. **Still open from before:** deterministic or stochastic as the primary mode, the headline number, 40 or 20 epochs, which Model A to cite, venue, and merging to `main`.
+1. **Retrain under the new setting?** I recommend 3 seeds with nothing else changed, pre-registered, about 80 minutes per seed. Policies should be trained on the physics they are tested on. This comes first, because it decides which policies get the final read. Training needs about 17 GB of free commit memory, so it can't start until the queued jobs finish or I stop them.
+2. **What gets rerun, and when?** The switch itself is small: one `<option>` line in a copy of the scene file, passed with `--mjcf`, and no training or evaluation code changes. A scratch copy reproduced 15 of 15 in-memory elliptic rows exactly. The real scene file is unchanged. The locked set stays unrun under this setting, so it can give one final read once the finalists are settled. Each controller takes about 4 hours per 1,005 trials if four run together. Hand-tuned B also needs rerunning, because only A has been measured here.
+3. **How to reduce the spread between seeds, if it remains.** Options, none tested: fix the reward so holding pays, lower the exploration noise (action std only falls from 1.0 to about 0.9), add finger closure and time to the observation, or learn a residual on top of the fixed grip, so that every seed starts from a working grip. The last looks most likely to give consistency, and it would test whether learning adds anything beyond the grip, but it is a controller change and it changes what the paper is about.
+4. **The TCN under the new setting.** It was trained on default-physics data. Regenerating 20,000 trials and retraining is possible but probably not needed by Nov 8. It could be disclosed instead, with regeneration planned for Phase 2.
+5. **Sensor channel fix.** Use touch for normal force and direct contact forces for tangential. This means regenerating data, so it belongs in Phase 2. For Nov 8, only the Methods wording needs to change.
+6. **Still open from before:** deterministic or stochastic as the primary mode, the headline number, 40 or 20 epochs, which Model A to cite, venue, and merging to `main`.
 
 ## My rough odds
 
@@ -89,9 +95,11 @@ These are judgment, not measurement, and I'll update them when the fresh-seed ru
 
 ## What's running
 
-All read-only, and safe to stop. The fresh-seed runs resume from their own files and retry on failure. Together these use about 25 of the 35.8 GB commit limit, so please keep the browser light or they can run out of memory.
+All read-only, and safe to stop. The fresh-seed runs resume from their own files and retry on failure. At 8 pm on Nov 4, about 31 of the 35.8 GB commit limit was in use: 15.6 GB for these jobs and 5 GB for the browser. No job has failed and no log shows a memory error, but please close browser tabs before about 10:15 pm, for the reason below.
 
-**This goes against a rule in my notes:** one MuJoCo-heavy job at a time. I'm running five single-process jobs side by side, which is about the load of one RL training run. I judged that acceptable because nothing is training, every job is read-only, the old crashes trace to running out of commit memory, and free commit has stayed above 9 GB. It saves about 15 hours of a tight schedule. Tell me if you'd rather I run them one at a time.
+**This goes against a rule in my notes:** one MuJoCo-heavy job at a time. I'm running five single-process jobs side by side, which is about the load of one RL training run. I judged that acceptable because nothing is training, every job is read-only, and the old crashes trace to running out of commit memory. It saves about 15 hours of a tight schedule. Tell me if you'd rather I run them one at a time.
+
+**Two corrections to what I said about that.** I said free commit had stayed above 9 GB, but at 8 pm it was 3.5-4.4 GB. I also said five jobs, but when the noslip runs end, about 10:30 pm, the four elliptic runs start alongside the two dev-set jobs still queued, which makes six. I miscounted when I queued them. Six jobs would leave about 1 GB free with the browser at 5 GB, and about 6 GB with it closed. If a job can't get memory, the fresh-seed runs retry up to 6 times, 2 minutes apart, and resume from their own files. Dev-set steps don't retry, but the failure is logged and they can be rerun.
 
 | Job | What it answers | Expected end |
 |---|---|---|
@@ -99,6 +107,7 @@ All read-only, and safe to stop. The fresh-seed runs resume from their own files
 | `Data/diag_fresh_seeds/_fresh_elliptic_nov4.sh` | Same, elliptic with `impratio` 10 | About 3 am |
 | `Data/diag_contact_physics/_chain4_nov4.sh` | Fixed grips under noslip, what the n_steps 512 policies do, TCN removed under noslip, hand-tuned with no TCN, iteration-count sensitivity, seed 2 and 3 grips | Overnight |
 | `Data/diag_contact_physics/_chain5_nov4.sh` | Elliptic on the rest of the dev set, fixed grips under elliptic, `impratio` 3 and 100 | Overnight |
+| `Data/diag_contact_physics/_chain6_nov4.sh` | Whether a seed's held rate climbs or bounces across saved checkpoints (45 trials each, so coarse), and more fixed grips | Starts when `_chain4_nov4.sh` ends, likely late morning Nov 5 |
 
 New code: `diagnostic_confirm_runs.py` reproduced 60 of 60 existing rows exactly before any real run. I reviewed it myself, so nobody independent has checked it.
 

@@ -1,6 +1,6 @@
 # Paper outline: slip detection and closed-loop grasp control in simulation
 
-**Status:** working draft, last updated Nov 4, 2026, evening. R9, R12, R13 and R14 are filled in, and R15-R17 are new. **Points marked `[FLAG Nov 4]` are contradicted or changed by the Nov 4 review and need rewriting before use. I flagged them and did not rewrite them, because the framing and the headline are your call** (see `reports/path_to_70_review_2026-11-04.md`). The seeded F1 items wait on your runs.
+**Status:** working draft, last updated Nov 4, 2026, evening. R9, R12, R13 and R14 are filled in, and R15-R17 are new. **Points marked `[FLAG Nov 4]` are contradicted or changed by the Nov 4 review and need rewriting before use. I flagged them and did not rewrite them, because the framing and the headline are your call** (see `reports/path_to_70_review_2026-11-04.md`). **Benchmark:** you delegated the choice on Nov 4, and elliptic with `impratio` 10 is now primary, with default beside it, subject to the checks in `results.md`. Numbers below are still under default settings unless marked, because the final read hasn't run. The seeded F1 items wait on your runs.
 
 **How to read this file**
 - Every point is something to say in that section, in the order it should appear. Rewrite it in your own words.
@@ -25,7 +25,7 @@
 2. In this setup, a large static F1 gap (0.691 vs. 0.799) produced no closed-loop difference under the hand-tuned controller. `[FLAG Nov 4: stronger evidence now exists. Removing the TCN signal changes 0 of 450 RL outcomes on the dev set (R15). The "actuator headroom" explanation does not hold up, though (R6).]`
 3. A learned controller can beat hand-tuned control, but training doesn't reliably produce one. Three repeats of the same setup held 61.2%, 42.2% and 15.0% of 960 trials at 5 cm, against 18.8% for hand-tuned, and the third is worse than hand-tuned. `[FLAG Nov 4: a fixed script with no policy or TCN matches seed 1 on the dev set, 86 vs. 86 of 150 (R16). So don't attribute this lead to learned feedback. It may be the grip.]`
 4. Failures fall into two kinds that depend on object shape: objects falling before the pull, and objects slipping during it. A few shapes almost never hold. `[FLAG Nov 4: much of the "few shapes almost never hold" part looks like contact settings (R17).]`
-5. `[FLAG Nov 4, YOUR CALL: a possible new finding. Contact solver settings alone moved every controller by 20-30 points on the dev set, more than any detector or controller difference here (R17). Not adopted, and fresh-seed runs are pending.]`
+5. `[FLAG Nov 4, YOUR CALL: a possible new finding. Contact solver settings alone moved every controller by 20-30 points on the dev set, more than any detector or controller difference here (R17). Elliptic with `impratio` 10 is now the primary benchmark, and fresh-seed runs are pending.]`
 
 **Don't claim**
 - That this is physics-informed. The current Model B has no physics loss (see 5.5).
@@ -48,11 +48,11 @@
 | Seed 1's 72.7% on held-out objects as reaching 70% | Those 4 shapes are easier for every controller here, and it's a subset (R9) |
 | VecNormalize's 2.2% as a verdict on VecNormalize | The number is real (the eval-path check passed), but it is one unseeded run on 45 trials (R12) |
 | "89 episodes per object", "published range 27-95%", "pure randomness" | Corrected in `results.md`, "Corrections to tonight's audit" |
-| 81.3% or 78.7% as a result | Seed 1 is best of 3, on the much-used dev set, under settings chosen after seeing scores and not adopted (R17). Use only what the fresh-seed runs give, and only if you adopt a setting |
+| 81.3% or 78.7% as a result | Seed 1 is best of 3, on the much-used dev set, under settings chosen after seeing scores (R17). Final figures come from one locked-set read under the chosen setting |
 | 61.3% for the slower fixed grip as an unbiased figure | Best of several grips on 150 trials, with speeds read from seed 1 (R16) |
 
 **`[YOUR CALL]` before writing**
-- **Which contact settings are the benchmark (R17).** This comes first, because it changes every number below. Options and my recommendation are in `reports/path_to_70_review_2026-11-04.md`.
+- **Decided Nov 4: elliptic with `impratio` 10 is the primary benchmark, with default beside it in every table (R17).** You delegated this, and you can overrule it. It changes every number below once the final read has run. Still your call: whether to retrain under it (`reports/path_to_70_review_2026-11-04.md`).
 - Target venue and format (length, sections, citation style). References below are numbered and can be reformatted.
 - Which Model A to cite. My recommendation: label closed-loop results as F1 0.691 and report static F1 as a range (see R2).
 - Whether to report 5 cm, 10 cm or both. Plan so far: both, with 5 cm primary for RL because it was the existing rule.
@@ -452,7 +452,7 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 - Seed 1's median closure by RL steps 10, 20 and 50: thumb and index 0.80, 1.00, 1.00. Ring 0.62, 1.00, 1.00. Pinky 0.20, 0.62, 1.00. Middle 0. Raw mean actions sit near or beyond the +1 limit, and 4 of 15 traced trials change any finger by more than 0.01 during the pull.
 - **Be careful:** choosing among grips on 150 trials inflates the best one, and seed 1's traces informed these grips. `[PENDING: fixed grips under stricter contact settings; do seeds 2 and 3 differ mainly in which fingers they close?]`
 
-### R17. Contact solver settings `[NEW Nov 4, dev set, exploratory, NOT adopted, YOUR CALL]`
+### R17. Contact solver settings `[NEW Nov 4, dev set, exploratory. Elliptic with impratio 10 chosen as primary on Nov 4, subject to fresh-seed checks]`
 - The scene sets no contact options, so it runs MuJoCo's defaults: pyramidal cone, `impratio` 1, no noslip pass [20].
 - At full load under default settings (seed 1, 15 trials): objects move at a median 1.18 mm/s, up to 5.9, while contacts use 3% of their friction limit and capacity is 26x the load. Coulomb friction allows no sliding there. MuJoCo documents this as expected behavior of its soft-contact model and calls slippage "especially problematic in manipulation tasks" [48].
 - Other MuJoCo hand models set these options [49]: Allegro, Shadow Hand and Robotiq 2F-85 use `cone="elliptic" impratio="10"`, LEAP uses `impratio="100"`, and Shadow DEXEE uses `cone="elliptic" noslip_iterations="5"`.
@@ -469,7 +469,8 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 - Three-seed mean under noslip: 63.1%, SD 20.6, at 5 cm. So "one policy above 70%" and "consistent 70%" are different claims.
 - The grip doesn't change: seed 1's median closure matches at every sampled step. Among its held trials, grips carried mostly by friction go from 16 to 52.
 - **What argues against over-reading this:** the settings were chosen after seeing scores, on a much-used dev set. The policies and TCN were trained on default physics. Pad friction doesn't predict holding under any setting (seed 1 under noslip, 84.0% at low friction and 78.7% at high). Contacts at a slip reach a median 0.76 of their limit, so not every slip is sliding at the limit. And MuJoCo calls noslip "just an adhoc mechanism".
-- `[PENDING: 1,005 fresh trials per controller under each setting, pre-registered in results.md. The locked set stays unrun under any new setting until you decide.]`
+- **Decision:** elliptic with `impratio` 10 is primary, default is reported beside it, and noslip stays a sensitivity result. This was recorded in `results.md` before any fresh-seed result was read, along with what would reverse it. Say in the paper that the setting was proposed after scores had been seen.
+- `[PENDING: 1,005 fresh trials per controller under each setting, pre-registered in results.md. The locked set stays unrun under the chosen setting until the finalists are settled, then gets one final read.]`
 
 ---
 
@@ -542,7 +543,7 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 1. Restate the question.
 2. Success definition alone moved identical trials between 18.9% and 44.6%.
 3. A large static F1 gap produced no closed-loop difference here, because the initial grip and limited actuator headroom left little for detection to change. `[FLAG Nov 4: drop "limited actuator headroom" (R6).]`
-4. Three PPO training repeats held 61.2%, 42.2% and 15.0% at 5 cm (mean 39.5%, SD 23.2) against 18.8% for hand-tuned control, so a learned policy can be far better, but training didn't reliably produce one. `[FLAG Nov 4: rewrite, see finding 3. Add the contact-settings result if you adopt it or report it (R17).]`
+4. Three PPO training repeats held 61.2%, 42.2% and 15.0% at 5 cm (mean 39.5%, SD 23.2) against 18.8% for hand-tuned control, so a learned policy can be far better, but training didn't reliably produce one. `[FLAG Nov 4: rewrite, see finding 3. Add the contact-settings result, since elliptic is now primary (R17).]`
 5. Take-away: verify what success counts, evaluate detectors in closed loop, and report all training repeats.
 6. Next step: measure the physical ceiling and build the true physics-informed model.
 
@@ -554,8 +555,8 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 |---|---|---|
 | Figure 1 | Histogram of formation falls, marking 5 cm and 10 cm | To make, data ready |
 | Figure 2 | Score under each rule, A and B, with intervals | To make. `reports/figures/fig1_closed_loop_success.png` is related, but it isn't this chart |
-| Figure 3 | Per-object heat table with failure type | Regenerated with final data: `reports/figures/fig3_per_object_success.png`. Numbers may change if the contact settings do |
-| Figure 4 | RL per repeat with mean and SD, hand-tuned reference | Regenerated with final data: `reports/figures/fig2_rl_seed_spread.png`. Numbers may change if the contact settings do |
+| Figure 3 | Per-object heat table with failure type | Regenerated with final data: `reports/figures/fig3_per_object_success.png`. These are default-settings numbers, so it needs a version under the chosen setting after the final read |
+| Figure 4 | RL per repeat with mean and SD, hand-tuned reference | Regenerated with final data: `reports/figures/fig2_rl_seed_spread.png`. These are default-settings numbers, so it needs a version under the chosen setting after the final read |
 | New, optional | R17: each controller under each contact setting | To make once fresh-seed results are in |
 | Figure 5 | Static F1 with spread across seeds | `[PENDING: your seeded runs]` |
 | Optional | Diagram of the pipeline and trial phases | To make |

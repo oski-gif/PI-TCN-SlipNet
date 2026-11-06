@@ -1,0 +1,11 @@
+comparison,setting,difference_points,ci_low,ci_high,n_pairs,set
+RL training seed: seed 1 vs. seed 3,default,46.25,42.71,50.0,960,locked set
+Controller: best RL seed vs. hand-tuned A,default,42.5,38.96,46.04,960,locked set
+Grip: four fingers vs. all five (fixed grips),default,34.67,25.33,44.0,150,dev set
+Success definition: no drop rule vs. 5 cm rule,default,25.67,23.18,28.46,1005,seeds 0-66
+"Contact settings: elliptic vs. default, RL seed 1",elliptic,21.33,12.67,30.0,150,dev set
+"Contact settings: elliptic vs. default, RL seed 2",elliptic,20.67,11.33,30.0,150,dev set
+"Detector: with vs. without TCN, hand-tuned A",default,-2.0,-5.33,0.67,150,dev set
+Detector quality: F1 0.799 vs. 0.691,default,0.4,-0.4,1.19,1005,seeds 0-66
+Learning: best RL seed vs. fixed grip,default,0.0,-5.33,5.33,150,dev set
+"Detector: with vs. without signal, RL seed 1",default,0.0,0.0,0.0,150,dev set

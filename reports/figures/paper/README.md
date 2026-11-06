@@ -12,6 +12,7 @@ Draft captions below. Rewrite them in your own words.
 
 | # | File | Draft caption |
 |---|---|---|
+| 0 | `fig00_factor_summary` | How much each factor changes the share of trials held at 5 cm, measured on the same trials on both sides (percentage points, 95% paired bootstrap intervals). The slip detector's quality and presence are the smallest effects; the RL training seed, the controller, the grip, the success definition and the contact settings each move the held rate by 20-46 points. Orange: comparisons under MuJoCo default settings. Blue: elliptic against default. Rows come from different trial sets, named on the right, so compare sizes rather than exact values. |
 | 1 | `fig01_success_definition` | Share of trials scored as held against the largest fall allowed while the grasp forms. (a) Hand-tuned controller with Model A and Model B, 1,005 trials; the lines overlap. (b) Three RL training seeds, 960 locked trials. Squares mark 5, 10 and 15 cm; hollow squares, no drop rule. The same trials score 18.9% to 44.6% depending on the rule. |
 | 2 | `fig02_formation_falls` | Largest fall during grasp formation, log scale. Most falls past 5 cm are under 10 cm, where objects often still appear gripped; a second cluster near 20-25 cm is objects on the floor. |
 | 3 | `fig03_detector_vs_closed_loop` | Hand-tuned control with two slip detectors, static F1 0.691 (filled) and 0.799 (hollow), on the same 1,005 trials under each scoring rule. Right: held only with A, only with B, and exact McNemar p. No rule separates them. |

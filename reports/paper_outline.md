@@ -6,6 +6,7 @@
 - The benchmark is the elliptic cone with `impratio` 10, with default settings reported beside it. You delegated the choice on Nov 4, and the reasons and the rule for reversing it are in `results.md`.
 - No retrain under elliptic for the Nov 8 paper, after the Nov 4 crash. The fresh-seed elliptic runs give the final elliptic numbers, and the locked set gives the default-physics numbers (`results.md`, Nov 6 amendment).
 - New analyses: the TCN removed from every controller, what each RL seed's fingers do, where the contact-setting gain comes from, how the reward treats held and dropped objects, training curves, pad friction, slip timing, and agreement between controllers.
+- Framing (Nov 6): the paper is built around Figure 0, which ranks every factor by how much it moves the held rate. The detector comes last. See "What's new here, and what isn't" for how to state the novelty.
 
 **How to read this file**
 - Every point is something to say in that section, in the order it should appear. Rewrite it in your own words.
@@ -14,15 +15,32 @@
 - `[n]` points to the numbered reference list at the end.
 - Numbers come from `src/training/results.md`, from `reports/figures/paper/stats_summary.md`, or from `paper_stats.py` and `rl_locked_checks.py` in `src/analysis/nov3_drop_analysis/` (run them from the repo root to reproduce them). Result files are named in each section.
 
-**How far the references were checked:** every reference was matched to Crossref, arXiv or the publisher by its exact identifier, except where its entry says otherwise, so they are all real papers with the right authors and venues. I read abstracts, or search summaries of them, for some, marked **[A]**, and only checked publication details for the rest, marked **[M]**. I did not read any paper in full. Read each paper before relying on it, especially **[M]** ones. Where a point below says what an [M] paper found, that comes from memory, so confirm it first.
+**How far the references were checked:** every reference was matched to Crossref, arXiv or the publisher by its exact identifier, except where its entry says otherwise, so they are all real papers with the right authors and venues. I read abstracts, or search summaries of them, for some, marked **[A]**, and only checked publication details for the rest, marked **[M]**. References marked **[S]**, added Nov 6, come from a web search: only the identifier in the search result has been seen, so confirm authors, title and venue before citing them. I did not read any paper in full. Read each paper before relying on it, especially **[M]** ones. Where a point below says what an [M] paper found, that comes from memory, so confirm it first.
 
 ---
 
 ## 0. The core of the paper
 
-**Central question:** How much do a slip detector's static score and a benchmark's definition of "success" tell you about real closed-loop grasp performance?
+**The story in one line:** you set out to show that a better slip detector makes a better grasp, found that it was the smallest factor you measured, and then measured what does decide whether the object stays in the hand.
 
-**Why this framing:** the strongest results are about measurement and rigor, not a high success rate. It is also honest about where the project stands. Don't present this as "we reached X%".
+**Central question:** What decides whether a simulated slip-aware hand keeps hold of an object, and how much does the slip detector, the part usually reported and optimized, contribute?
+
+**The answer in one figure (Figure 0, `fig00_factor_summary`).** Each factor's effect on the share of trials held at 5 cm, measured on the same trials on both sides (percentage points, 95% paired bootstrap interval):
+
+| Factor | Effect | Trials |
+|---|---|---|
+| RL training seed (seed 1 vs. seed 3) | +46.2 (+42.7 to +50.0) | Locked set, 960 |
+| Controller (best RL seed vs. hand-tuned A) | +42.5 (+39.0 to +46.0) | Locked set, 960 |
+| Grip (four fingers vs. all five, fixed grips) | +34.7 (+25.3 to +44.0) | Dev set, 150 |
+| Success definition (no drop rule vs. 5 cm rule) | +25.7 (+23.2 to +28.5) | Seeds 0-66, 1,005 |
+| Contact settings (elliptic vs. default), RL seeds 1 and 2 | +21.3 and +20.7 (each about +11 to +30) | Dev set, 150 |
+| Learning (best RL seed vs. fixed grip) | 0.0 (-5.3 to +5.3) | Dev set, 150 |
+| Detector quality (F1 0.799 vs. 0.691) | +0.4 (-0.4 to +1.2) | Seeds 0-66, 1,005 |
+| Detector removed (hand-tuned A; RL seed 1) | -2.0 (-5.3 to +0.7); 0.0 | Dev set, 150 |
+
+- Say which trials each row comes from. The rows aren't all on one set, so compare their sizes, not their exact values. `[PENDING: add the fresh-seed contact-setting rows]`
+
+**Why this framing:** it is the most defensible result you have, every part of it is measured, and it is honest about where the project stands. Lead with the factor ranking, not a success rate. Don't present this as "we reached X%". In a talk: "I built a robot hand that detects slip, then discovered slip detection wasn't what kept it holding on."
 
 **The five findings to carry the paper**
 1. **How "held" is defined changes the result a lot.** The same 1,005 hand-tuned trials score 44.6%, 31.7% or 18.9%, depending on whether objects that fell before the pull count as failures (Figures 1, 2).
@@ -30,6 +48,20 @@
 3. **RL found a good grip, not a feedback strategy.** Three training seeds held 61.2%, 42.2% and 15.0% of the locked set (Figure 5). A fixed grip with no learning, sensing or detector matches the best seed (Figure 6). The seeds differ mainly in which fingers they close (Figure 11). The reward pays slightly more for trials where the object falls than for trials where it is held (Figure 12), and training reward ranks the seeds in the wrong order (Figure 14).
 4. **The simulator's contact settings move every controller more than any controller or detector difference.** Under MuJoCo's default settings, objects creep out of grips that friction should hold. Under the elliptic cone, the same unretrained controllers hold 20-30 points more on the dev set, mostly because fewer objects fall while the grasp forms. Objects still creep at about 1 mm/s under load (Figures 7, 10, 17). `[PENDING: fresh-seed confirmation, Figure 5]`
 5. **Failures depend on object shape, and the controllers fail on largely the same trials.** Flat and boxy objects fail under every controller (Figure 8). A quarter of locked-set trials are held by none of the five controllers (Figure 16).
+
+**What's new here, and what isn't** (from a quick literature search on Nov 6. Do a proper check before claiming any of it.)
+- **Not new on its own:**
+  - Offline metrics not predicting closed-loop results (driving [37, 38]).
+  - RL results varying by seed [33, 34].
+  - Success criteria mattering in grasp benchmarks [39, 40].
+  - MuJoCo's soft contacts letting objects slide (its own documentation [48]; contact models compared across simulators [50]).
+  - Learned policies barely changing when touch is removed at test time, in some setups [52, 53]. Touch helped under noisy perception in another [54].
+- **Plausibly new, phrased with "to our knowledge":**
+  1. A factor-by-factor accounting, on the same paired trials, in which the slip detector is the smallest factor measured, while choices that papers rarely report each move success by 20-46 points. The search found no study that ranks these factors in one setup.
+  2. How much the simulator's contact settings change a grasping benchmark, and why: +20 to +30 points for every controller, mostly by keeping objects in the hand while the grasp forms, with creep at full load only slightly reduced. The artifact is documented, but its size in a grasping benchmark didn't turn up.
+  3. What this means for physics-informed slip detection: data generated under default settings contains slips at a median 56% of the friction limit, so a Coulomb friction-cone loss would contradict its own labels. Check the simulator's physics before informing a model with physics.
+- **Suggested novelty sentence:** "To our knowledge, this is the first study to measure, on the same trials, how much a slip detector's quality, the success definition, the simulator's contact settings and RL training variance each change closed-loop grasp success. The detector was the smallest of these factors."
+- **Keep the claim narrow.** Closed-loop slip control has helped on real multi-fingered hands (e.g., [51]). So don't say slip feedback doesn't help grasping. Say it can't help in a benchmark where a fixed grip already decides the outcome.
 
 **Don't claim**
 - That this is physics-informed. The current Model B has no physics loss (see 5.5).
@@ -39,6 +71,7 @@
 - That the RL policies use touch or the slip signal. Removing the signal changes nothing measurable, and a fixed grip matches the best policy (R15, R16).
 - That the elliptic setting is physically correct, or that it removes creep. It shrinks a documented solver artifact. Objects still move about 1 mm/s at full load, and pad friction still doesn't predict holding (R17, R19).
 - That higher training reward means a better policy (R18).
+- That learned policies ignoring touch, or MuJoCo contacts sliding, are discoveries of this paper. Both are documented (see "What's new here").
 
 **Numbers not to use**
 
@@ -69,24 +102,23 @@
 
 ## 1. Title options
 
-1. Does a Better Slip Detector Mean a Better Grasp? Static Metrics, Success Definitions and Closed-Loop Control on a Simulated Five-Fingered Hand
-2. Measuring What Matters in Slip-Aware Grasping: A 1,005-Trial Simulation Study of Hand-Tuned and Learned Control
-3. When Grasp Success Depends on the Definition: Evaluating TCN Slip Detection and PPO Control in MuJoCo
-4. Grip, Not Feedback: What Closed-Loop Evaluation Shows About Slip Detection and Learned Grasping in Simulation
+1. What Actually Holds the Object? Measuring the Factors Behind Grasp Success in a Simulated Slip-Aware Hand (my recommendation, because it matches Figure 0)
+2. Grip, Not Feedback: What Closed-Loop Evaluation Shows About Slip Detection and Learned Grasping in Simulation
+3. Does a Better Slip Detector Mean a Better Grasp? Static Metrics, Success Definitions and Closed-Loop Control on a Simulated Five-Fingered Hand
+4. Measuring What Matters in Slip-Aware Grasping: A 1,005-Trial Simulation Study of Hand-Tuned and Learned Control
 
 ---
 
 ## 2. Abstract (one sentence or two per point)
 
-1. **Problem:** stable grasping needs detecting and responding to slip, and detectors are usually judged by static classification scores.
-2. **Gap:** static scores may not predict closed-loop performance, and success criteria and simulator settings can change what a benchmark measures.
-3. **Method:** a simulated five-fingered ORCA hand in MuJoCo, 15 object shapes, a TCN slip detector trained on 20,000 simulated trials, a hand-tuned controller and PPO, compared with a fixed grip that uses no sensing.
-4. **Evaluation:** 1,005 paired trials per condition, evaluation rules written in advance, scoring under several drop definitions, and two contact-solver settings.
-5. **Result 1:** hand-tuned success on identical trials was 44.6%, 31.7% or 18.9%, depending on whether objects falling before the pull counted as failures.
-6. **Result 2:** two detector checkpoints with F1 0.691 and 0.799 tied in closed loop (paired test p = 0.45 at 5 cm), and removing the detector's signal changed 19 of 1,200 paired outcomes.
-7. **Result 3:** across three PPO training repeats, held rates at 5 cm were 61.2%, 42.2% and 15.0% (mean 39.5%, SD 23.2), against 18.8% for hand-tuned control on the same 960 trials. A fixed grip with no learning matched the best repeat. `[YOUR CALL: confirm the evaluation mode, R13]`
-8. **Result 4:** a stricter contact setting raised every controller. `[PENDING: fresh-seed elliptic numbers]`
-9. **Conclusion:** grasp benchmarks should verify the object is still held, report their contact settings, evaluate detectors in closed loop, and compare learned controllers against fixed baselines.
+1. **Problem:** stable grasping needs detecting and responding to slip, and slip detectors are usually judged by static classification scores.
+2. **Question:** in a simulated slip-aware grasping pipeline, how much does the detector actually contribute to keeping hold of an object, compared with the other choices a study makes?
+3. **Method:** a simulated five-fingered ORCA hand in MuJoCo, 15 object shapes, a TCN slip detector trained on 20,000 simulated trials, a hand-tuned controller, PPO, and a fixed grip that uses no sensing. 1,005 paired trials per condition, with evaluation rules written in advance.
+4. **Approach:** measure, on the same trials, how much the held rate changes with detector quality, removing the detector, the success definition, the simulator's contact settings, the grip, learning, and the RL training seed.
+5. **Result 1, the detector was the smallest factor:** checkpoints with F1 0.691 and 0.799 differed by 0.4 points (paired p = 0.45 at 5 cm), and removing the detector changed 19 of 1,200 paired outcomes.
+6. **Result 2, choices around the method were large:** the success definition moved identical trials by 26 points (44.6% vs. 18.9%), and stricter contact settings raised every unretrained controller by 20-30 points, mostly by keeping objects in the hand while the grasp formed. `[PENDING: fresh-seed elliptic numbers]`
+7. **Result 3, RL found a grip, not feedback:** three training repeats held 61.2%, 42.2% and 15.0% (mean 39.5%, SD 23.2) against 18.8% for hand-tuned control on the same 960 trials. A fixed grip with no learning matched the best repeat, and the reward paid as much for dropped objects as for held ones. `[YOUR CALL: confirm the evaluation mode, R13]`
+8. **Conclusion:** grasp benchmarks should verify the object is still held, report their contact settings, evaluate detectors in closed loop against a fixed-grip baseline, and report all training repeats. Physics-informed slip detection also needs a simulator whose contacts obey the physics it encodes.
 
 ---
 
@@ -116,13 +148,11 @@
 - Point to make: the effect of these measurement choices on a slip-aware grasping pipeline should be measured directly.
 
 **Paragraph 5: What this paper does (contributions)**
-1. A 1,005-trial paired closed-loop benchmark on a simulated five-fingered hand across 15 shapes.
-2. A direct measurement of how the success definition changes the result on identical trials.
-3. A closed-loop comparison of detector checkpoints with different static F1, and a test that removes the detector entirely.
+1. A factor-by-factor measurement, on the same paired trials, of what decides whether a simulated slip-aware hand keeps hold of an object: detector quality, the detector's presence, the success definition, the simulator's contact settings, the grip, learning and the RL training seed (Figure 0).
+2. Evidence that the slip detector is the smallest of these factors here, and why: the grip formed in the first half second decides the outcome.
+3. A measurement of how much MuJoCo's contact settings change a grasping benchmark, where the change comes from, and what it means for physics-informed learning.
 4. A comparison of hand-tuned control, PPO and a fixed grip on the same trials, reporting all training repeats.
-5. A measurement of how much the simulator's contact settings change every controller, and where that change comes from.
-6. Failure analysis by object and failure type.
-7. Evaluation rules written before results, with public code and result files. `[YOUR CALL: confirm the repo is public before saying this]`
+5. A 1,005-trial paired closed-loop benchmark across 15 shapes, with evaluation rules written before results, and public code and result files. `[YOUR CALL: confirm the repo is public before saying this]`
 
 ---
 
@@ -130,7 +160,7 @@
 
 **4.1 Slip detection and tactile grip control**
 - Survey [6]. Tactile classifiers and force estimation with biomimetic sensors [9, 10]. Vision-based tactile sensing [11, 12].
-- Grip controllers using tactile events [7, 8].
+- Grip controllers using tactile events [7, 8], and closed-loop slip control on a multi-fingered tactile hand [51]. These show slip feedback can help on real hardware, so the claim here is narrower: it can't help where a fixed grip already decides the outcome.
 - Difference here: fingertip force and torque signals in simulation, with a causal TCN, and the focus on evaluation.
 
 **4.2 Temporal convolutional networks**
@@ -151,9 +181,10 @@
 - RL variance and reporting [33, 34], implementation effects [35, 36].
 - Leakage in ML-based science [41], relevant to the feature exclusions in 5.5.
 - Preregistration separates hypothesis generation from testing [42].
+- Tactile ablations in learned control: removing touch at test time barely changed results in some setups [52, 53], while touch helped under noisy perception [54].
 
 **4.6 Contact modelling in simulation**
-- MuJoCo's soft-contact model [19, 20] and its documented slow slip under load [48].
+- MuJoCo's soft-contact model [19, 20] and its documented slow slip under load [48]. A comparative analysis of contact models used in robotics simulators sets out benchmarks for this kind of artifact [50].
 - Published hand models set solver options for this: Allegro, Shadow Hand and Robotiq 2F-85 use an elliptic cone with `impratio` 10 [49].
 
 ---
@@ -648,6 +679,7 @@ All figures are in `reports/figures/paper/` as PNG (300 dpi) and PDF, each with 
 
 | Figure | File | Shows | Status |
 |---|---|---|---|
+| 0 | `fig00_factor_summary` | Each factor's effect on the held rate, same trials on both sides, paired intervals | Ready; add the fresh-seed contact rows when they land |
 | 1 | `fig01_success_definition` | Held rate against the formation-fall cutoff, hand-tuned and RL | Ready |
 | 2 | `fig02_formation_falls` | Distribution of formation falls, 5 and 10 cm marked | Ready |
 | 3 | `fig03_detector_vs_closed_loop` | Model A and B, same trials, every scoring rule | Ready |
@@ -668,7 +700,7 @@ All figures are in `reports/figures/paper/` as PNG (300 dpi) and PDF, each with 
 | 18 | Static F1 with spread across seeds | | `[PENDING: your seeded runs]` |
 | Optional | Diagram of the pipeline and trial phases | | To make |
 
-Suggested main-text set for a short paper: Figures 1, 3, 4, 5, 6, 7 and 17, with the rest as supplementary.
+Suggested main-text set for a short paper: Figure 0 as the opening figure, then Figures 1, 3, 4, 5, 6, 7 and 17, with the rest as supplementary. Renumber when you assemble the paper.
 
 | Table | Content | Status |
 |---|---|---|
@@ -800,3 +832,15 @@ Numbered in the order used for planning. Renumber to match your final paper and 
 [48] MuJoCo documentation, "Modeling" chapter, "Solver settings" and "Preventing slip". https://mujoco.readthedocs.io/en/stable/modeling.html. Read in full on Nov 4, 2026; quotes in `results.md`. Cite the version you used (3.11.0).
 
 [49] MuJoCo Menagerie, model files `wonik_allegro/right_hand.xml`, `shadow_hand/right_hand.xml`, `robotiq_2f85/2f85.xml`, `leap_hand/right_hand.xml` and `shadow_dexee/shadow_dexee.xml`. https://github.com/google-deepmind/mujoco_menagerie. `<option>` lines read on Nov 4, 2026. Cite the repository's own recommended paper and the commit you read.
+
+**Added Nov 6, from a web search: confirm before citing**
+
+[50] Q. Le Lidec, W. Jallet, L. Montaut, I. Laptev, C. Schmid and J. Carpentier, "Contact Models in Robotics: a Comparative Analysis," *IEEE Transactions on Robotics*, vol. 40, pp. 3716-3733, 2024. doi:10.1109/TRO.2024.3434208. arXiv:2304.06372. **[S]**
+
+[51] "Slip detection for grasp stabilisation with a multi-fingered tactile robot hand," arXiv:2010.01928, 2020. Authors (J. W. James and N. F. Lepora, according to the search summary) to confirm. **[S]**
+
+[52] A study of tactile sensing in RL grasp refinement, arXiv:2109.11234, 2021 (A. Koenig et al., according to the search result). Reports at most a 6.6% drop with no tactile input in the policy's state. Title and venue to confirm. **[S]**
+
+[53] "Visual-Tactile Multimodality for Following Deformable Linear Objects Using Reinforcement Learning," arXiv:2204.00117, 2022. Reports that removing the tactile input at test time had practically no effect on reward. Authors to confirm. **[S]**
+
+[54] "The Role of Tactile Sensing for Learning Reach and Grasp," arXiv:2502.20367, 2025. Reports that tactile input helps mainly under noise and perception errors. Authors to confirm. **[S]**

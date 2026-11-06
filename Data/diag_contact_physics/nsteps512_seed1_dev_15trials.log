@@ -1,0 +1,19 @@
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+default              cube                 seed=1000 held=False slipped=True  fall=  14.2 mm  max_disp=   6.0 mm
+default              sphere               seed=1000 held=False slipped=False fall= 233.6 mm  max_disp=   0.3 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              cone                 seed=1000 held=False slipped=True  fall=  18.7 mm  max_disp=   6.0 mm
+default              rectangular_prism    seed=1000 held=False slipped=True  fall=  22.4 mm  max_disp=  10.5 mm  speed   9.11 mm/s  tips moved  0.57 mm  friction used 0.07  capacity/load  16.1
+default              cylindrical_prism    seed=1000 held=False slipped=False fall= 219.0 mm  max_disp=   5.9 mm  speed   0.01 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              capsule              seed=1000 held=False slipped=True  fall= 215.3 mm  max_disp=  12.1 mm  speed   5.33 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              ellipsoid            seed=1000 held=False slipped=False fall= 222.1 mm  max_disp=   3.9 mm  speed   1.61 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              flat_disk            seed=1000 held=False slipped=False fall= 243.0 mm  max_disp=   2.6 mm  speed   0.00 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              rod                  seed=1000 held=False slipped=False fall= 204.8 mm  max_disp=   0.3 mm  speed   0.02 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              l_block              seed=1000 held=False slipped=False fall= 240.2 mm  max_disp=   4.3 mm  speed   0.26 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              dumbbell             seed=1000 held=False slipped=True  fall=  45.2 mm  max_disp=  13.6 mm  speed  11.17 mm/s  tips moved  0.31 mm  friction used 0.23  capacity/load   5.7
+default              plus_cross           seed=1000 held=False slipped=False fall= 220.4 mm  max_disp=   4.6 mm  speed   1.79 mm/s  tips moved  0.00 mm  friction used 0.00  capacity/load   1.0
+default              square_pyramid       seed=1000 held=True  slipped=False fall=  18.0 mm  max_disp=   2.7 mm  speed   1.20 mm/s  tips moved  0.41 mm  friction used 0.03  capacity/load  20.7
+default              triangular_prism     seed=1000 held=False slipped=True  fall=  13.7 mm  max_disp=   7.6 mm  speed  13.26 mm/s  tips moved  6.44 mm  friction used 0.16  capacity/load   5.9
+default              hexagonal_prism      seed=1000 held=False slipped=True  fall=  16.6 mm  max_disp=   6.1 mm
+== default: held 1/15
+
+Reproduction of ../../Data/rl_nsteps512_seed1_dev_deterministic.jsonl: 15/15 trials match

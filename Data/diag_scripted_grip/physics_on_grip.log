@@ -1,0 +1,5 @@
+TIRP_fast            noslip20             5 cm 118/150 78.7%   10 cm 131/150 87.3%   fell past 5 cm 18
+seed1_like           noslip20             5 cm 119/150 79.3%   10 cm 128/150 85.3%   fell past 5 cm 15
+TIMRP_fast           noslip20             5 cm 78/150 52.0%   10 cm 128/150 85.3%   fell past 5 cm 60
+TIR_fast             noslip20             5 cm 119/150 79.3%   10 cm 130/150 86.7%   fell past 5 cm 18
+hand_tuned_like      noslip20             5 cm 71/150 47.3%   10 cm 109/150 72.7%   fell past 5 cm 66

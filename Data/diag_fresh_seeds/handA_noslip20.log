@@ -1,0 +1,22 @@
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+50 trials, held so far 18
+100 trials, held so far 55
+150 trials, held so far 103
+200 trials, held so far 144
+250 trials, held so far 152
+300 trials, held so far 175
+350 trials, held so far 206
+400 trials, held so far 252
+450 trials, held so far 296
+500 trials, held so far 315
+550 trials, held so far 319
+600 trials, held so far 331
+650 trials, held so far 344
+700 trials, held so far 359
+750 trials, held so far 380
+800 trials, held so far 400
+850 trials, held so far 440
+900 trials, held so far 456
+950 trials, held so far 460
+1000 trials, held so far 468
+DONE hand noslip20 tcn=True: 5 cm 468/1005   10 cm 707/1005   fell past 5 cm 432

@@ -3060,3 +3060,34 @@ its scale. Not started -- reporting first, per instructions.
 - **What this changes today:** no file, policy or stored result. Default-physics results stay valid as default-physics results. The real scene file is unchanged. Runs so far set the option in memory, and a scene copy with the one `<option>` line reproduced 15 of 15 of those rows.
 - **Final figures:** one read of the locked set (seeds 3-66) under this setting, once the finalists are settled, paired with the existing default rows. Fresh-seed results check this choice and are not the final figures.
 - **Still the user's decisions:** retraining under this setting, the TCN under this setting, the evaluation mode, and the headline.
+
+## Nov 4 evening: runs interrupted by a crash, and the TCN-removal results that finished
+
+- **Written:** 2026-11-06. At about 8:41 pm on Nov 4 the laptop froze (Windows Kernel-Power 41, bugcheck code 0, so a hang or power loss rather than a software crash) while six jobs were running, about four minutes after the sixth started. It froze again at 8:49 pm, was powered off by hand and needed Startup Repair. Nothing has run since. Five jobs had been running side by side since the afternoon, against the rule of one MuJoCo-heavy job at a time. The cause isn't known, but that load may have contributed, so the rule is back in force.
+- **Finished:** hand-tuned A on fresh seeds under noslip, 1,005 rows, not yet read. Every `_chain4_nov4.sh` step through `handA_dev150_noslip20_noTCN`. Seed 2 under elliptic on the dev set.
+- **Interrupted, not read:** fresh-seed noslip for RL seeds 1, 2 and 3 at 600, 621 and 666 of 1,005 rows. They resume from their files if rerun. The fresh-seed elliptic runs never started.
+- **Interrupted, not used:** seed 3 elliptic dev (100 of 150 rows, from an append-only script, so a rerun starts over) and seed 1 noslip 5 without TCN (111 of 150). `elliptic_scene_check.py` recorded no result. `_chain6_nov4.sh` never started.
+- **Removing the TCN signal, dev set, same 150 trials, 5 cm (10 cm), held with / without, then trials held only with / only without:**
+
+  | Controller and setting | With TCN | Without | Only with / only without | p |
+  |---|---|---|---|---|
+  | RL seed 1, default | 86 (91) | 86 (91) | 0 / 0 | 1.0 |
+  | RL seed 1, noslip | 122 (129) | 122 (129) | 0 / 0 | 1.0 |
+  | RL seed 2, noslip | 101 (108) | 99 (106) | 4 / 2 | 0.69 |
+  | RL seed 3, noslip | 61 (66) | 60 (65) | 1 / 0 | 1.0 |
+  | Hand-tuned A, default | 35 (58) | 38 (60) | 1 / 4 | 0.38 |
+  | Hand-tuned A, noslip | 66 (101) | 71 (106) | 1 / 6 | 0.13 |
+
+  For RL, 7 of 600 noslip-or-default outcomes change, none significantly. Hand-tuned A, whose TCN triggers grip corrections, holds slightly more without it under both settings, also not significant. So the TCN adds nothing measurable to either controller here. The RL policies were trained with the signal, so this doesn't show what training without it would give. Hand-tuned A with no TCN is the exact test that was queued. Script: `src/analysis/nov3_drop_analysis/tcn_removal_compare.py`.
+- **Seed 2 under elliptic, dev set:** 87 of 150 held at 5 cm (58.0%), 99 at 10 cm, 32 fell past 5 cm during formation. Default 56, noslip 101. Exploratory, like the other dev-set contact results.
+
+## Amendment before any fresh-seed elliptic row exists: final figures, fixed grip, and run order
+
+- **Written:** 2026-11-06, about 5:10 pm, before any fresh-seed elliptic run started. The user approved this run. No fresh-seed result under any setting has been read, including hand-tuned A's finished noslip run.
+- **No retrain for the Nov 8 paper.** The laptop froze under sustained load on Nov 4. A retrain is the heaviest job here, 5 processes for about 5 hours, and would leave no time to evaluate it. It moves to Phase 2. So nothing gets chosen after this run: the controllers are the existing ones, fixed in advance.
+- **So the fresh-seed elliptic results are the final elliptic figures.** This replaces "Final figures: one read of the locked set under this setting" in "Decision: elliptic cone". The locked set stays unrun under elliptic and remains available for Phase 2. Default-physics figures stay the locked-set ones (seeds 3-66). Those are different trials, so default and elliptic are compared unpaired at full size, and paired only on the dev set.
+- **The reversal rule applies unchanged** to these runs, through `src/analysis/nov3_drop_analysis/elliptic_gate_check.py`, written on Nov 4 before any of these rows existed.
+- **Added: fixed grip `TIRP_fast` on the same 1,005 trials under elliptic.** It has no policy, tactile input or TCN. On the dev set it matched RL seed 1 under default (86 vs. 86 of 150) and under noslip (118 vs. 122). That grip was designed from seed 1's traces and looked at on dev results, so its dev figure is optimistic. This measures it on trials nothing was chosen on. Reported: held at 5 cm and 10 cm with Wilson intervals, and paired against each RL seed and hand-tuned A with exact McNemar. It doesn't feed the reversal rule.
+- **Checks before launch:** the fresh-seed runner reproduced 15 of 15 stored seed-1 elliptic dev rows exactly (held, slipped, dropped, formation fall, maximum displacement, episode length and reward). The grip script ran 15 dev trials under elliptic without error.
+- **Order, one job at a time:** RL seed 1, hand-tuned A, RL seed 2, RL seed 3, fixed grip. Then, lowest priority, the interrupted noslip runs for RL seeds 1-3 resume from their own files. If the run is cut short, whatever finished is reported as finished and the rest as not run. Script: `Data/diag_fresh_seeds/_fresh_elliptic_nov6.sh`.
+- **No early stopping.** A controller's rows aren't read until its run completes. Reporting is the same as in the noslip pre-registration: every controller, whatever it scores.

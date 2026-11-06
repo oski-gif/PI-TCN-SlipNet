@@ -1,0 +1,6 @@
+scoring,n,held_A,held_B,only_A,only_B,mcnemar_p
+"1,500 steps, no drop rule",1005,589,582,14,7,0.1892
+"2,300 steps, no drop rule",1005,448,449,12,13,1.0
+"2,300 steps, 15 cm rule",1005,319,320,12,13,1.0
+"2,300 steps, 10 cm rule",1005,319,320,12,13,1.0
+"2,300 steps, 5 cm rule",1005,190,194,6,10,0.4545

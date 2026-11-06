@@ -1,0 +1,13 @@
+controller,setting,held,n,held_pct,ci_low,ci_high,only_this_setting_vs_default,only_default,mcnemar_p
+RL seed 1,default,86,150,57.33,49.33,64.97,,,
+RL seed 1,noslip,122,150,81.33,74.34,86.76,42,6,0.0
+RL seed 1,elliptic,118,150,78.67,71.44,84.46,41,9,6e-06
+RL seed 2,default,56,150,37.33,30.0,45.3,,,
+RL seed 2,noslip,101,150,67.33,59.48,74.32,56,11,0.0
+RL seed 2,elliptic,87,150,58.0,50.0,65.6,43,12,3.3e-05
+RL seed 3,default,19,150,12.67,8.26,18.94,,,
+RL seed 3,noslip,61,150,40.67,33.13,48.67,49,7,0.0
+Hand-tuned A,default,35,150,23.33,17.28,30.72,,,
+Hand-tuned A,noslip,66,150,44.0,36.3,52.0,41,10,1.5e-05
+TIRP_fast,default,86,150,57.33,49.33,64.97,,,
+TIRP_fast,noslip,118,150,78.67,71.44,84.46,37,5,0.0

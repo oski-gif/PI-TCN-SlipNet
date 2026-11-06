@@ -1,0 +1,19 @@
+set,controller,setting,held,n,held_pct,ci_low,ci_high
+dev,"Fixed: thumb, index, ring, pinky, full speed",default,86,150,57.33,49.33,64.97
+dev,"Fixed: thumb, index, ring, pinky, full speed",noslip,118,150,78.67,71.44,84.46
+dev,Fixed: same fingers at seed 1's speeds,default,92,150,61.33,53.35,68.75
+dev,Fixed: same fingers at seed 1's speeds,noslip,119,150,79.33,72.16,85.04
+dev,"Fixed: thumb, index, ring, full speed",default,76,150,50.67,42.75,58.55
+dev,"Fixed: thumb, index, ring, full speed",noslip,119,150,79.33,72.16,85.04
+dev,"Fixed: all five fingers, full speed",default,34,150,22.67,16.7,30.0
+dev,"Fixed: all five fingers, full speed",noslip,78,150,52.0,44.06,59.84
+dev,"Fixed: all five, hand-tuned ramp",default,40,150,26.67,20.24,34.26
+dev,"Fixed: all five, hand-tuned ramp",noslip,71,150,47.33,39.51,55.29
+dev,RL seed 1,default,86,150,57.33,49.33,64.97
+dev,RL seed 1,noslip,122,150,81.33,74.34,86.76
+dev,RL seed 2,default,56,150,37.33,30.0,45.3
+dev,RL seed 2,noslip,101,150,67.33,59.48,74.32
+dev,RL seed 3,default,19,150,12.67,8.26,18.94
+dev,RL seed 3,noslip,61,150,40.67,33.13,48.67
+dev,Hand-tuned A,default,35,150,23.33,17.28,30.72
+dev,Hand-tuned A,noslip,66,150,44.0,36.3,52.0

@@ -1,0 +1,13 @@
+panel,controller,setting,set,n,held,slipped_after_forming,fell_while_forming
+"Dev set, the same 150 trials under each setting",RL seed 1,default,dev,150,86,31,33
+"Dev set, the same 150 trials under each setting",RL seed 1,noslip,dev,150,122,12,16
+"Dev set, the same 150 trials under each setting",RL seed 1,elliptic,dev,150,118,22,10
+"Dev set, the same 150 trials under each setting",RL seed 2,default,dev,150,56,42,52
+"Dev set, the same 150 trials under each setting",RL seed 2,noslip,dev,150,101,19,30
+"Dev set, the same 150 trials under each setting",RL seed 2,elliptic,dev,150,87,31,32
+"Dev set, the same 150 trials under each setting",RL seed 3,default,dev,150,19,53,78
+"Dev set, the same 150 trials under each setting",RL seed 3,noslip,dev,150,61,27,62
+"Dev set, the same 150 trials under each setting",Hand-tuned A,default,dev,150,35,30,85
+"Dev set, the same 150 trials under each setting",Hand-tuned A,noslip,dev,150,66,18,66
+"Dev set, the same 150 trials under each setting",Fixed grip,default,dev,150,86,30,34
+"Dev set, the same 150 trials under each setting",Fixed grip,noslip,dev,150,118,14,18

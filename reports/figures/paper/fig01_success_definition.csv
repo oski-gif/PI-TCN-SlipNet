@@ -1,0 +1,131 @@
+panel,controller,cutoff_cm,n,held,held_pct
+"Hand-tuned controller, 1,005 trials",Model A,1,1005,0,0.0
+"Hand-tuned controller, 1,005 trials",Model A,2,1005,5,0.5
+"Hand-tuned controller, 1,005 trials",Model A,3,1005,73,7.26
+"Hand-tuned controller, 1,005 trials",Model A,4,1005,116,11.54
+"Hand-tuned controller, 1,005 trials",Model A,5,1005,190,18.91
+"Hand-tuned controller, 1,005 trials",Model A,6,1005,302,30.05
+"Hand-tuned controller, 1,005 trials",Model A,7,1005,316,31.44
+"Hand-tuned controller, 1,005 trials",Model A,8,1005,317,31.54
+"Hand-tuned controller, 1,005 trials",Model A,9,1005,317,31.54
+"Hand-tuned controller, 1,005 trials",Model A,10,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,11,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,12,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,13,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,14,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,15,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,16,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,17,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,18,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,19,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,20,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,21,1005,319,31.74
+"Hand-tuned controller, 1,005 trials",Model A,22,1005,339,33.73
+"Hand-tuned controller, 1,005 trials",Model A,23,1005,367,36.52
+"Hand-tuned controller, 1,005 trials",Model A,24,1005,380,37.81
+"Hand-tuned controller, 1,005 trials",Model A,25,1005,447,44.48
+"Hand-tuned controller, 1,005 trials",Model A,no drop rule,1005,448,44.58
+"Hand-tuned controller, 1,005 trials",Model B,1,1005,0,0.0
+"Hand-tuned controller, 1,005 trials",Model B,2,1005,5,0.5
+"Hand-tuned controller, 1,005 trials",Model B,3,1005,75,7.46
+"Hand-tuned controller, 1,005 trials",Model B,4,1005,117,11.64
+"Hand-tuned controller, 1,005 trials",Model B,5,1005,194,19.3
+"Hand-tuned controller, 1,005 trials",Model B,6,1005,303,30.15
+"Hand-tuned controller, 1,005 trials",Model B,7,1005,317,31.54
+"Hand-tuned controller, 1,005 trials",Model B,8,1005,318,31.64
+"Hand-tuned controller, 1,005 trials",Model B,9,1005,318,31.64
+"Hand-tuned controller, 1,005 trials",Model B,10,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,11,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,12,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,13,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,14,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,15,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,16,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,17,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,18,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,19,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,20,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,21,1005,320,31.84
+"Hand-tuned controller, 1,005 trials",Model B,22,1005,340,33.83
+"Hand-tuned controller, 1,005 trials",Model B,23,1005,368,36.62
+"Hand-tuned controller, 1,005 trials",Model B,24,1005,381,37.91
+"Hand-tuned controller, 1,005 trials",Model B,25,1005,448,44.58
+"Hand-tuned controller, 1,005 trials",Model B,no drop rule,1005,449,44.68
+"RL, three training seeds, locked set (960)",Seed 1,1,960,10,1.04
+"RL, three training seeds, locked set (960)",Seed 1,2,960,238,24.79
+"RL, three training seeds, locked set (960)",Seed 1,3,960,489,50.94
+"RL, three training seeds, locked set (960)",Seed 1,4,960,560,58.33
+"RL, three training seeds, locked set (960)",Seed 1,5,960,588,61.25
+"RL, three training seeds, locked set (960)",Seed 1,6,960,602,62.71
+"RL, three training seeds, locked set (960)",Seed 1,7,960,608,63.33
+"RL, three training seeds, locked set (960)",Seed 1,8,960,609,63.44
+"RL, three training seeds, locked set (960)",Seed 1,9,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,10,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,11,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,12,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,13,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,14,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,15,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,16,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,17,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,18,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,19,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,20,960,610,63.54
+"RL, three training seeds, locked set (960)",Seed 1,21,960,615,64.06
+"RL, three training seeds, locked set (960)",Seed 1,22,960,631,65.73
+"RL, three training seeds, locked set (960)",Seed 1,23,960,638,66.46
+"RL, three training seeds, locked set (960)",Seed 1,24,960,648,67.5
+"RL, three training seeds, locked set (960)",Seed 1,25,960,654,68.12
+"RL, three training seeds, locked set (960)",Seed 1,no drop rule,960,662,68.96
+"RL, three training seeds, locked set (960)",Seed 2,1,960,41,4.27
+"RL, three training seeds, locked set (960)",Seed 2,2,960,204,21.25
+"RL, three training seeds, locked set (960)",Seed 2,3,960,364,37.92
+"RL, three training seeds, locked set (960)",Seed 2,4,960,392,40.83
+"RL, three training seeds, locked set (960)",Seed 2,5,960,405,42.19
+"RL, three training seeds, locked set (960)",Seed 2,6,960,412,42.92
+"RL, three training seeds, locked set (960)",Seed 2,7,960,419,43.65
+"RL, three training seeds, locked set (960)",Seed 2,8,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,9,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,10,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,11,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,12,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,13,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,14,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,15,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,16,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,17,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,18,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,19,960,423,44.06
+"RL, three training seeds, locked set (960)",Seed 2,20,960,426,44.38
+"RL, three training seeds, locked set (960)",Seed 2,21,960,460,47.92
+"RL, three training seeds, locked set (960)",Seed 2,22,960,488,50.83
+"RL, three training seeds, locked set (960)",Seed 2,23,960,495,51.56
+"RL, three training seeds, locked set (960)",Seed 2,24,960,510,53.12
+"RL, three training seeds, locked set (960)",Seed 2,25,960,539,56.15
+"RL, three training seeds, locked set (960)",Seed 2,no drop rule,960,567,59.06
+"RL, three training seeds, locked set (960)",Seed 3,1,960,15,1.56
+"RL, three training seeds, locked set (960)",Seed 3,2,960,80,8.33
+"RL, three training seeds, locked set (960)",Seed 3,3,960,126,13.12
+"RL, three training seeds, locked set (960)",Seed 3,4,960,133,13.85
+"RL, three training seeds, locked set (960)",Seed 3,5,960,144,15.0
+"RL, three training seeds, locked set (960)",Seed 3,6,960,144,15.0
+"RL, three training seeds, locked set (960)",Seed 3,7,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,8,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,9,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,10,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,11,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,12,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,13,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,14,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,15,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,16,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,17,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,18,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,19,960,147,15.31
+"RL, three training seeds, locked set (960)",Seed 3,20,960,155,16.15
+"RL, three training seeds, locked set (960)",Seed 3,21,960,219,22.81
+"RL, three training seeds, locked set (960)",Seed 3,22,960,281,29.27
+"RL, three training seeds, locked set (960)",Seed 3,23,960,350,36.46
+"RL, three training seeds, locked set (960)",Seed 3,24,960,438,45.62
+"RL, three training seeds, locked set (960)",Seed 3,25,960,465,48.44
+"RL, three training seeds, locked set (960)",Seed 3,no drop rule,960,472,49.17

@@ -1,0 +1,13 @@
+quantity,group_or_step,n,median_or_value,q25,q75
+ep_reward,Held,588,611.72,577.54,656.26
+ep_reward,Slipped,183,616.62,572.62,663.02
+ep_reward,Fell,189,644.74,553.32,727.25
+phase2_reward,Held,588,-12.24,-41.09,-0.83
+phase2_reward,Slipped,183,-51.31,-71.85,-36.03
+phase2_reward,Fell,189,-28.9,-47.04,-21.08
+hold_bonus_present_value,0,,0.1964,,
+hold_bonus_present_value,80,,0.4389,,
+hold_bonus_present_value,160,,0.9808,,
+hold_bonus_present_value,260,,2.6796,,
+hold_bonus_present_value,360,,7.3206,,
+hold_bonus_present_value,460,,20.0,,

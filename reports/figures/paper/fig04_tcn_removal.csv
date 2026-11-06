@@ -1,0 +1,9 @@
+controller_setting,n,held_with,held_without,only_with,only_without,mcnemar_p
+"RL seed 1, default",150,86,86,0,0,1.0
+"RL seed 2, default",150,56,56,0,0,1.0
+"RL seed 3, default",150,19,19,0,0,1.0
+"RL seed 1, noslip",150,122,122,0,0,1.0
+"RL seed 2, noslip",150,101,99,4,2,0.6875
+"RL seed 3, noslip",150,61,60,1,0,1.0
+"Hand-tuned A, default",150,35,38,1,4,0.375
+"Hand-tuned A, noslip",150,66,71,1,6,0.125

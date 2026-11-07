@@ -1,0 +1,36 @@
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+50 trials, held so far 11
+100 trials, held so far 49
+150 trials, held so far 97
+200 trials, held so far 135
+250 trials, held so far 141
+300 trials, held so far 155
+350 trials, held so far 176
+400 trials, held so far 223
+450 trials, held so far 273
+500 trials, held so far 297
+550 trials, held so far 304
+600 trials, held so far 323
+650 trials, held so far 341
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+50 trials, held so far 11
+100 trials, held so far 49
+150 trials, held so far 97
+200 trials, held so far 135
+250 trials, held so far 141
+300 trials, held so far 155
+350 trials, held so far 176
+400 trials, held so far 223
+450 trials, held so far 273
+500 trials, held so far 297
+550 trials, held so far 304
+600 trials, held so far 323
+650 trials, held so far 341
+700 trials, held so far 365
+750 trials, held so far 389
+800 trials, held so far 421
+850 trials, held so far 458
+900 trials, held so far 476
+950 trials, held so far 478
+1000 trials, held so far 479
+DONE hand elliptic_impratio10 tcn=True: 5 cm 479/1005   10 cm 649/1005   fell past 5 cm 352

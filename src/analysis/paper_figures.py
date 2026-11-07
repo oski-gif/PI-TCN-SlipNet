@@ -280,11 +280,15 @@ def load_all():
         D[("dev", "default", grip)] = get(f"{grip}, dev, default", "diag_scripted_grip/dev_first_grips.jsonl", DEV, 150, grip=grip)
         D[("dev", "noslip", grip)] = get(f"{grip}, dev, noslip", "diag_scripted_grip/physics_on_grip.jsonl", DEV, 150, grip=grip)
 
+    # held at 5 cm as recorded in results.md (Nov 7 entries), so a changed or truncated file is left out, not drawn
+    fresh_held5 = {("seed1", "elliptic"): 810, ("seed2", "elliptic"): 608, ("seed3", "elliptic"): 443, ("handA", "elliptic"): 479,
+                   ("seed1", "noslip"): 823, ("seed2", "noslip"): 728, ("seed3", "noslip"): 488, ("handA", "noslip"): 468}
     for tag, name in (("seed1", "RL seed 1"), ("seed2", "RL seed 2"), ("seed3", "RL seed 3"), ("handA", "Hand-tuned A")):
         for setting, suffix in (("elliptic", "elliptic_impratio10"), ("noslip", "noslip20")):
-            D[("fresh", setting, name)] = get(f"{name}, fresh, {setting}", f"diag_fresh_seeds/{tag}_{suffix}.jsonl", FRESH, 1005)
+            D[("fresh", setting, name)] = get(f"{name}, fresh, {setting}", f"diag_fresh_seeds/{tag}_{suffix}.jsonl", FRESH, 1005,
+                                              fresh_held5[(tag, setting)])
     D[("fresh", "elliptic", "Fixed grip")] = get("Fixed grip, fresh, elliptic",
-                                                 "diag_fresh_seeds/grip_TIRP_fast_elliptic_impratio10.jsonl", FRESH, 1005)
+                                                 "diag_fresh_seeds/grip_TIRP_fast_elliptic_impratio10.jsonl", FRESH, 1005, 801)
     return D
 
 
@@ -1163,7 +1167,8 @@ def fig_dev_vs_fresh(D):
     if not pairs:
         NOTES.append("left out: dev-vs-fresh figure, no controller has both a dev and a fresh run yet")
         return
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 0.42 * len(pairs) + 1.3), sharey=True)
+    # wide gap so panel a's "+x.x, outside" labels aren't covered by panel b
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 0.42 * len(pairs) + 1.3), sharey=True, gridspec_kw={"wspace": 0.55})
     out = []
     for ax, cm in zip(axes, (5, 10)):
         ys = forest_axes(ax, [f"{n}, {s}" for n, s in pairs], f"Dev-set figure minus fresh-seed figure, {cm} cm (points)",

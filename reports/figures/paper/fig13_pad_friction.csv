@@ -5,6 +5,12 @@ RL seed 1,default,locked,3,115,195,58.97
 RL seed 1,default,locked,4,120,195,61.54
 RL seed 1,default,locked,5,110,180,61.11
 RL seed 1,default,locked,MH odds ratio high vs low,0.896,,0.5632
+RL seed 1,noslip,fresh,1,175,210,83.33
+RL seed 1,noslip,fresh,2,163,195,83.59
+RL seed 1,noslip,fresh,3,166,210,79.05
+RL seed 1,noslip,fresh,4,164,195,84.1
+RL seed 1,noslip,fresh,5,155,195,79.49
+RL seed 1,noslip,fresh,MH odds ratio high vs low,0.871,,0.4925
 RL seed 1,elliptic,fresh,1,169,210,80.48
 RL seed 1,elliptic,fresh,2,166,195,85.13
 RL seed 1,elliptic,fresh,3,164,210,78.1
@@ -17,6 +23,12 @@ RL seed 2,default,locked,3,83,195,42.56
 RL seed 2,default,locked,4,79,195,40.51
 RL seed 2,default,locked,5,82,180,45.56
 RL seed 2,default,locked,MH odds ratio high vs low,1.037,,0.8751
+RL seed 2,noslip,fresh,1,145,210,69.05
+RL seed 2,noslip,fresh,2,144,195,73.85
+RL seed 2,noslip,fresh,3,148,210,70.48
+RL seed 2,noslip,fresh,4,144,195,73.85
+RL seed 2,noslip,fresh,5,147,195,75.38
+RL seed 2,noslip,fresh,MH odds ratio high vs low,1.159,,0.3666
 RL seed 2,elliptic,fresh,1,135,210,64.29
 RL seed 2,elliptic,fresh,2,124,195,63.59
 RL seed 2,elliptic,fresh,3,119,210,56.67
@@ -29,6 +41,12 @@ RL seed 3,default,locked,3,28,195,14.36
 RL seed 3,default,locked,4,30,195,15.38
 RL seed 3,default,locked,5,29,180,16.11
 RL seed 3,default,locked,MH odds ratio high vs low,1.0,,0.9234
+RL seed 3,noslip,fresh,1,102,210,48.57
+RL seed 3,noslip,fresh,2,102,195,52.31
+RL seed 3,noslip,fresh,3,93,210,44.29
+RL seed 3,noslip,fresh,4,103,195,52.82
+RL seed 3,noslip,fresh,5,88,195,45.13
+RL seed 3,noslip,fresh,MH odds ratio high vs low,1.063,,0.7446
 RL seed 3,elliptic,fresh,1,88,210,41.9
 RL seed 3,elliptic,fresh,2,81,195,41.54
 RL seed 3,elliptic,fresh,3,92,210,43.81

@@ -1,0 +1,35 @@
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+50 trials, held so far 39
+100 trials, held so far 82
+150 trials, held so far 125
+200 trials, held so far 159
+250 trials, held so far 194
+300 trials, held so far 226
+350 trials, held so far 259
+400 trials, held so far 288
+450 trials, held so far 329
+500 trials, held so far 374
+550 trials, held so far 414
+600 trials, held so far 445
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+50 trials, held so far 39
+100 trials, held so far 82
+150 trials, held so far 125
+200 trials, held so far 159
+250 trials, held so far 194
+300 trials, held so far 226
+350 trials, held so far 259
+400 trials, held so far 288
+450 trials, held so far 329
+500 trials, held so far 374
+550 trials, held so far 414
+600 trials, held so far 445
+650 trials, held so far 481
+700 trials, held so far 507
+750 trials, held so far 528
+800 trials, held so far 573
+850 trials, held so far 621
+900 trials, held so far 658
+950 trials, held so far 681
+1000 trials, held so far 723
+DONE policy noslip20 tcn=True: 5 cm 728/1005   10 cm 782/1005   fell past 5 cm 173

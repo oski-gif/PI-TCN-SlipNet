@@ -1,7 +1,13 @@
 controller,setting,cutoff_cm,fresh_held,fresh_n,fresh_pct,fresh_ci_low,fresh_ci_high,dev_held,dev_n,dev_pct,dev_inside
 RL seed 1,elliptic,5,810,1005,80.6,78.04,82.92,118,150,78.67,True
 RL seed 2,elliptic,5,608,1005,60.5,57.44,63.47,87,150,58.0,True
+RL seed 1,noslip,5,823,1005,81.89,79.39,84.15,122,150,81.33,True
+RL seed 2,noslip,5,728,1005,72.44,69.59,75.11,101,150,67.33,False
+RL seed 3,noslip,5,488,1005,48.56,45.48,51.65,61,150,40.67,False
 Hand-tuned A,noslip,5,468,1005,46.57,43.5,49.66,66,150,44.0,True
 RL seed 1,elliptic,10,855,1005,85.07,82.74,87.14,124,150,82.67,False
 RL seed 2,elliptic,10,651,1005,64.78,61.77,67.67,99,150,66.0,True
+RL seed 1,noslip,10,877,1005,87.26,85.06,89.18,129,150,86.0,True
+RL seed 2,noslip,10,782,1005,77.81,75.14,80.27,108,150,72.0,False
+RL seed 3,noslip,10,504,1005,50.15,47.06,53.23,66,150,44.0,False
 Hand-tuned A,noslip,10,707,1005,70.35,67.45,73.09,101,150,67.33,False

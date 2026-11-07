@@ -646,6 +646,7 @@ Fixed grips: no policy, tactile input or TCN. Same environment and scoring. Held
 - Contacts are soft in MuJoCo [19, 20]. Under default settings objects creep at about 1 mm/s at full load with contacts at 4% of their friction limit. Under the elliptic setting used for the primary results they still creep at about 1 mm/s (R17). It reduces failures but doesn't make contacts stick.
 - The elliptic setting was chosen after dev-set scores had been seen.
 - Policies and the TCN were trained under default contact settings and are evaluated under elliptic. No policy was trained under elliptic.
+- The default and elliptic headline numbers come from different trials (locked seeds 3-66 and fresh seeds 2000-2066), so they are compared unpaired. The paired comparison exists only on the 150-trial dev set, whose figures ran 2-3 points below the fresh ones (R22).
 - The pull is downward only, at 1.5x weight. Real disturbances vary.
 - Same hand pose and object placement for all objects, with no grasp planning or arm.
 - Detector data uses a random split by trial, so static scores don't test generalization to new objects.

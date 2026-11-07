@@ -14,3 +14,25 @@ Loaded ../../src/training/model_a.pt (22ch) on cpu
 650 trials, held so far 534
 700 trials, held so far 573
 750 trials, held so far 609
+Loaded ../../src/training/model_a.pt (22ch) on cpu
+50 trials, held so far 30
+100 trials, held so far 70
+150 trials, held so far 117
+200 trials, held so far 166
+250 trials, held so far 189
+300 trials, held so far 224
+350 trials, held so far 261
+400 trials, held so far 310
+450 trials, held so far 360
+500 trials, held so far 409
+550 trials, held so far 454
+600 trials, held so far 501
+650 trials, held so far 534
+700 trials, held so far 573
+750 trials, held so far 609
+800 trials, held so far 658
+850 trials, held so far 707
+900 trials, held so far 747
+950 trials, held so far 777
+1000 trials, held so far 809
+DONE policy elliptic_impratio10 tcn=True: 5 cm 810/1005   10 cm 855/1005   fell past 5 cm 83

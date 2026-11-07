@@ -4,7 +4,7 @@ Built by `src/analysis/paper_figures.py` from stored trial rows. Each figure has
 
     venv/Scripts/python.exe src/analysis/paper_figures.py
 
-The script checks each input file's trial count and held count against `src/training/results.md`, and leaves out any run that is missing or unfinished rather than estimating it. The fresh-seed elliptic runs are complete and appear in figures 0, 5, 6, 8, 9, 13, 16, 17 and 18. The fresh-seed noslip runs for the RL seeds appear once they finish.
+The script checks each input file's trial count and held count against `src/training/results.md`, and leaves out any run that is missing or unfinished rather than estimating it. Every fresh-seed run is complete. The elliptic runs appear in figures 0, 5, 6, 8, 9, 13, 16, 17 and 18, and the noslip runs in figures 5, 9, 13 and 18.
 
 **Conventions.** Color is the contact setting: blue elliptic (primary), orange MuJoCo default, aqua noslip, each with its own marker shape. Intervals are 95% Wilson. Paired comparisons are exact McNemar tests on the same trials. Locked set: seeds 3-66, 960 trials. Dev set: seeds 1000-1009, 150 trials, exploratory. Fresh seeds: 2000-2066, 1,005 trials.
 

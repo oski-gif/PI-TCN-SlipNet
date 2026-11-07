@@ -1,6 +1,6 @@
 # Paper outline: slip detection and closed-loop grasp control in simulation
 
-**Status:** working draft, updated Nov 7, 2026, evening. Every pre-registered fresh-seed run is in, elliptic and noslip (R22). The reversal check passed, so elliptic stays primary, and every figure includes them. The Nov 4 flags are resolved: each flagged point is rewritten to match the evidence, and every result points to its figure in `reports/figures/paper/`. That folder's `README.md` lists the figures with draft captions, and `stats_summary.md` there has every number and test behind them. **Still your call:** the headline number, the evaluation mode, the venue, and anything marked `[YOUR CALL]`. **Still `[PENDING]`:** only the seeded F1 items, which wait on your runs. **New Nov 7 evening:** every point says exactly what to cite (see "How to read this file"). The references marked "confirm" were checked, and [53] had been cited for something its abstract doesn't say, so that's fixed. **Corrected Nov 7:** the contact settings don't move results more than the choice of controller or seed does (finding 4).
+**Status:** working draft, updated Nov 7, 2026, evening. Every pre-registered fresh-seed run is in, elliptic and noslip (R22). The reversal check passed, so elliptic stays primary, and every figure includes them. The Nov 4 flags are resolved: each flagged point is rewritten to match the evidence, and every result points to its figure in `reports/figures/paper/`. That folder's `README.md` lists the figures with draft captions, and `stats_summary.md` there has every number and test behind them. **Still your call:** the headline number, the venue, and anything marked `[YOUR CALL]`. **Decided Nov 7:** deterministic evaluation is primary (R13). **Still `[PENDING]`:** only the seeded F1 items, which wait on your runs. **New Nov 7 evening:** every point says exactly what to cite (see "How to read this file"). The references marked "confirm" were checked, and [53] had been cited for something its abstract doesn't say, so that's fixed. **Corrected Nov 7:** the contact settings don't move results more than the choice of controller or seed does (finding 4).
 
 **What changed since Nov 4**
 - The benchmark is the elliptic cone with `impratio` 10, with default settings reported beside it. You delegated the choice on Nov 4, and the reasons and the rule for reversing it are in `results.md`.
@@ -104,7 +104,7 @@ These five are your results, so cite the figures named in each. Their outside re
 - Target venue and format (length, sections, citation style). References below are numbered and can be reformatted.
 - Which Model A to cite. My recommendation: label closed-loop results as F1 0.691 and report static F1 as a range (see R2).
 - Whether to report 5 cm, 10 cm or both. Plan so far: both, with 5 cm primary for RL because it was the existing rule.
-- RL evaluation mode, because the pre-registered check tripped (R13). My recommendation: deterministic as primary, since every locked-set run used it and it's the common way to evaluate PPO, with the stochastic numbers reported beside it.
+- **RL evaluation mode: decided Nov 7, deterministic.** Every RL number already uses it, so nothing changes. Report the stochastic dev-set numbers beside it (R13).
 - RL headline number. The pre-registered rule makes it the three-seed mean and SD: 61.7%, SD 18.3, at 5 cm under elliptic on fresh seeds (the primary setting), with 39.5%, SD 23.2, under default on the locked set beside it. Seed 1 is shown as "best of 3 seeds, deterministic". Changing that now would be changing a rule after seeing results, so I recommend keeping it.
 - Whether the fixed grip is presented as the baseline that RL and the detector have to beat. I recommend it, because it is the fairest reference for "did learning or sensing add anything".
 
@@ -129,7 +129,7 @@ These five are your results, so cite the figures named in each. Their outside re
 4. **Approach:** measure, on the same trials, how much the held rate changes with detector quality, removing the detector, the success definition, the simulator's contact settings, the grip, learning, and the RL training seed.
 5. **Result 1, the detector was the smallest factor:** checkpoints with F1 0.691 and 0.799 differed by 0.4 points (paired p = 0.45 at 5 cm), and removing the detector changed 19 of 1,200 paired outcomes.
 6. **Result 2, choices around the method were large:** the success definition moved identical trials by 26 points (44.6% vs. 18.9%), and stricter contact settings raised each of four unretrained controllers by 18 to 29 points on fresh trials (hand-tuned control from 18.8% to 47.7%), mostly by keeping objects in the hand while the grasp formed.
-7. **Result 3, RL found a grip, not feedback:** under the primary contact settings, three training repeats held 80.6%, 60.5% and 44.1% of 1,005 fresh trials (mean 61.7%, SD 18.3) against 47.7% for hand-tuned control. Under MuJoCo's defaults they held 61.2%, 42.2% and 15.0% (mean 39.5%, SD 23.2) against 18.8%. A fixed grip with no learning held 79.7%, matching the best repeat (paired difference +0.9 points, -1.1 to +3.0), and the reward paid as much for dropped objects as for held ones. `[YOUR CALL: confirm the evaluation mode, R13]`
+7. **Result 3, RL found a grip, not feedback:** under the primary contact settings, three training repeats held 80.6%, 60.5% and 44.1% of 1,005 fresh trials (mean 61.7%, SD 18.3) against 47.7% for hand-tuned control. Under MuJoCo's defaults they held 61.2%, 42.2% and 15.0% (mean 39.5%, SD 23.2) against 18.8%. A fixed grip with no learning held 79.7%, matching the best repeat (paired difference +0.9 points, -1.1 to +3.0), and the reward paid as much for dropped objects as for held ones. Say once that these are deterministic, mean-action rates (R13).
 8. **Conclusion:** grasp benchmarks should verify the object is still held, report their contact settings, evaluate detectors in closed loop against a fixed-grip baseline, and report all training repeats. Physics-informed slip detection also needs a simulator whose contacts obey the physics it encodes.
 
 ---
@@ -299,6 +299,7 @@ Total 2,300 steps. Grip target for hand-tuned control: squeeze 0.95 of the actua
 - **Pre-registered rules:** written in `results.md` before those runs [42]. A new configuration counts as "improved" only if every new repeat beats every baseline repeat and the mean gain is at least the larger of 15 points or 1 baseline SD. **Cite:** [42] Nosek 2018.
 - **Deviations to disclose:** the 10 cm rule was added after seeing results, and locked-set runs ran before dev-set checks. The elliptic setting was proposed after dev-set scores had been seen. No choices used the locked set. **Cite:** [42] Nosek 2018, on reporting deviations from a pre-registered plan.
 - **Evaluating RL under other rules:** an evaluation-only option lets trials continue past 5 cm and records the maximum fall. Policies were never trained past 5 cm, so behaviour beyond it is untrained.
+- **RL evaluation mode:** deterministic, the policy's mean action, for every RL result. Sampled actions were compared on the dev set only (R13). The pre-registered check found that the mode changes the numbers, so say so. **Cite:** [31] Raffin 2021.
 - **Statistics:**
   - Wilson 95% intervals for rates [43, 44]. **Cite:** [43] Wilson 1927; [44] Brown 2001.
   - Exact McNemar test for paired trial comparisons [45]. **Cite:** [45] McNemar 1947.
@@ -508,7 +509,7 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 
 - At 10 cm: 91 vs. 75 (10.7, limit 6.8), 60 vs. 39 (14.0, limit 7.4), 19 vs. 8 (7.3, limit 5.5).
 - Every RL rate in this paper measures the policy's mean action. Sampling from the policy as trained holds 7-14 points fewer. State this next to the RL results.
-- `[YOUR CALL: which mode is primary. My recommendation is deterministic, with stochastic reported beside it]`
+- **Decided Nov 7: deterministic is primary**, with stochastic reported beside it. Every RL number in the paper already uses it, so nothing was re-run. Reasons: every locked and fresh run used it, it's the default of Stable-Baselines3's `evaluate_policy`, it's what a deployed controller would use, and it's the mode most favourable to RL, which makes the fixed-grip comparison conservative. **Cite:** [31] Raffin 2021.
 
 ### R14. Longer training rollouts: worse
 **Cite:** none; give the numbers in the text.
@@ -518,7 +519,7 @@ Dev set, 150 paired trials, same start conditions, noise seeded per trial. The p
 - SD falls only because all three are near the floor. So the hypothesis that rollouts shorter than a trial cause the spread isn't supported.
 - Why it got worse isn't established. Both take about the same gradient steps, but this collects half as many rollouts. That's a hypothesis.
 - Mean evaluation reward doesn't rank these policies by holding: 434 with 4 held against 415 with 19 held.
-- Deterministic only, and the evaluation mode is still your call (R13).
+- Deterministic, the primary mode (R13), so this verdict now stands.
 
 ### R15. The TCN signal in closed loop (Figure 4)
 Dev set, the same 150 trials with and without the TCN. For RL the slip probability is replaced by 0; for hand-tuned control the TCN is removed, so no corrections happen. **Cite:** Figure 4. Compare with other tactile ablations, [52] Koenig 2022 and [54] Zhang 2025, in the Discussion, not here.

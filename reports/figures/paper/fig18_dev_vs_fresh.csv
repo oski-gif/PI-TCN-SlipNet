@@ -1,0 +1,5 @@
+controller,setting,cutoff_cm,fresh_held,fresh_n,fresh_pct,fresh_ci_low,fresh_ci_high,dev_held,dev_n,dev_pct,dev_inside
+RL seed 1,elliptic,5,810,1005,80.6,78.04,82.92,118,150,78.67,True
+Hand-tuned A,noslip,5,468,1005,46.57,43.5,49.66,66,150,44.0,True
+RL seed 1,elliptic,10,855,1005,85.07,82.74,87.14,124,150,82.67,False
+Hand-tuned A,noslip,10,707,1005,70.35,67.45,73.09,101,150,67.33,False

@@ -50,6 +50,7 @@ SETTINGS = {
     "default": {"color": "#eb6834", "marker": "s", "label": "MuJoCo default contact settings"},
     "noslip": {"color": "#1baf7a", "marker": "D", "label": "Noslip pass, 20 iterations"},
 }
+SHORT = {"elliptic": "Elliptic (primary)", "default": "MuJoCo default", "noslip": "Noslip"}
 SEQ = LinearSegmentedColormap.from_list(
     "seq_blue", ["#ffffff", "#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"])
 
@@ -439,7 +440,7 @@ def fig_rl_seed_spread(D):
                if any(D.get((sources[s], s, n)) for n in names)]
     has_grip = D.get(("fresh", "elliptic", "Fixed grip")) is not None
     names = [n for n in names if n != "Fixed grip" or has_grip]
-    fig, ax = plt.subplots(figsize=(7.0, 0.42 * len(names) + 1.1))
+    fig, ax = plt.subplots(figsize=(7.0, 0.55 * len(names) + 1.1))
     labels = [n if n != "Mean of 3 seeds" else "Mean of 3 seeds (± 1 SD)" for n in names]
     labels = [lab if lab != "Fixed grip" else "Fixed grip, no learning" for lab in labels]
     ys = forest_axes(ax, labels, "Trials held at 5 cm (%)")
@@ -449,7 +450,8 @@ def fig_rl_seed_spread(D):
             here = [s for s in present if all(D.get((sources[s], s, f"RL seed {i}")) for i in (1, 2, 3))]
         else:
             here = [s for s in present if D.get((sources[s], s, name)) is not None]
-        offsets = dict(zip(here, np.linspace(0.18, -0.18, len(here)) if len(here) > 1 else [0.0]))
+        spread = 0.14 * (len(here) - 1)
+        offsets = dict(zip(here, np.linspace(spread, -spread, len(here)) if len(here) > 1 else [0.0]))
         for s in here:
             src = sources[s]
             yy = y + offsets[s]
@@ -647,7 +649,7 @@ def fig_survival(D):
     axes[0].set_ylabel("In-hand trials not yet slipped (%)")
     fig.supxlabel("Time since the pull started (s)", fontsize=8, color=INK2, y=-0.04)
     present = [s for s in ("default", "noslip", "elliptic") if any(r[1] == s for r in out)]
-    axes[0].legend(handles=[handle(s, label=SETTINGS[s]["label"] + (", locked set" if s == "default" else ", fresh seeds"))
+    axes[0].legend(handles=[handle(s, label=SHORT[s] + (", locked set" if s == "default" else ", fresh seeds"))
                             for s in present], loc="lower left", bbox_to_anchor=(0, 1.12), ncol=len(present))
     save(fig, "fig09_slip_timing", ["controller", "setting", "set", "n_in_hand", "time_s", "pct_not_slipped"], out)
     for m in ("A", "B"):
@@ -863,7 +865,7 @@ def fig_pad_friction(D):
     axes[0].set_ylabel("Trials held at 5 cm (%)")
     fig.supxlabel("Pad friction, quintile within each object", fontsize=8, color=INK2, y=-0.05)
     present = [s for s in ("default", "noslip", "elliptic") if any(r[1] == s for r in out)]
-    axes[0].legend(handles=[handle(s, label=SETTINGS[s]["label"] + (", locked set" if s == "default" else ", fresh seeds"))
+    axes[0].legend(handles=[handle(s, label=SHORT[s] + (", locked set" if s == "default" else ", fresh seeds"))
                             for s in present], loc="lower left", bbox_to_anchor=(0, 1.12), ncol=len(present))
     save(fig, "fig13_pad_friction", ["controller", "setting", "set", "quintile", "held", "n", "held_pct"], out)
 
@@ -1103,6 +1105,44 @@ def fig_factor_summary(D):
     save(fig, "fig00_factor_summary", ["comparison", "setting", "difference_points", "ci_low", "ci_high", "n_pairs", "set"], out)
 
 
+def fig_dev_vs_fresh(D):
+    """The pre-registered check: does each dev-set figure fall inside its fresh-seed 95% interval?
+    Drawn as dev minus fresh, so the fresh interval is a band around zero."""
+    names = ["RL seed 1", "RL seed 2", "RL seed 3", "Hand-tuned A"]
+    pairs = [(n, s) for s in ("elliptic", "noslip") for n in names
+             if D.get(("dev", s, n)) is not None and D.get(("fresh", s, n)) is not None]
+    if not pairs:
+        NOTES.append("left out: dev-vs-fresh figure, no controller has both a dev and a fresh run yet")
+        return
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 0.42 * len(pairs) + 1.3), sharey=True)
+    out = []
+    for ax, cm in zip(axes, (5, 10)):
+        ys = forest_axes(ax, [f"{n}, {s}" for n, s in pairs], f"Dev-set figure minus fresh-seed figure, {cm} cm (points)",
+                         xlim=(-10, 10))
+        ax.axvline(0, color=AXIS, lw=1.0, zorder=1)
+        for y, (n, s) in zip(ys, pairs):
+            dev, fresh = D[("dev", s, n)], D[("fresh", s, n)]
+            kf, nf = count(fresh, cm)
+            kd, nd = count(dev, cm)
+            pf, lo, hi = wilson(kf, nf)
+            pd = 100 * kd / nd
+            c = SETTINGS[s]["color"]
+            ax.plot([lo - pf, hi - pf], [y, y], color=c, lw=7, alpha=0.3, solid_capstyle="butt", zorder=2)
+            ax.plot([pd - pf], [y], ls="none", marker=SETTINGS[s]["marker"], ms=6.5, mfc="white", mec=c, mew=1.4, zorder=4)
+            inside = lo <= pd <= hi
+            right_text(ax, y, f"{pd - pf:+.1f}, {'inside' if inside else 'outside'}")
+            out.append([n, s, cm, kf, nf, round(pf, 2), round(lo, 2), round(hi, 2), kd, nd, round(pd, 2), inside])
+            STATS.append(f"- {n}, {s}, {cm} cm: fresh {kf}/{nf} = {pf:.2f}% [{lo:.2f}, {hi:.2f}]; dev {kd}/{nd} = {pd:.2f}%, "
+                         f"{'inside' if inside else 'OUTSIDE'} the fresh interval.")
+        ax.set_title(f"{'a' if cm == 5 else 'b'}  {cm} cm rule", pad=22)
+    axes[0].legend(handles=[Line2D([0], [0], color=INK2, lw=7, alpha=0.3, label="Fresh seeds, 95% interval"),
+                            Line2D([0], [0], ls="none", marker="o", ms=6.5, mfc="white", mec=INK2, mew=1.4,
+                                   label="Dev set")],
+                   loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2)
+    save(fig, "fig18_dev_vs_fresh", ["controller", "setting", "cutoff_cm", "fresh_held", "fresh_n", "fresh_pct",
+                                     "fresh_ci_low", "fresh_ci_high", "dev_held", "dev_n", "dev_pct", "dev_inside"], out)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     style()
@@ -1114,7 +1154,7 @@ def main():
     for f in (fig_factor_summary, fig_success_definition, fig_formation_falls, fig_detector_vs_closed_loop, fig_tcn_removal,
               fig_rl_seed_spread, fig_fixed_grips, fig_contact_settings_dev, fig_per_object, fig_survival,
               fig_creep, fig_finger_closure, fig_reward, fig_pad_friction, fig_training_curves,
-              fig_sensor_channel, fig_agreement, fig_outcomes):
+              fig_sensor_channel, fig_agreement, fig_outcomes, fig_dev_vs_fresh):
         STATS.append(f"\n## {f.__name__[4:].replace('_', ' ').capitalize()}\n")
         f(D)
     if NOTES:

@@ -1,8 +1,10 @@
 controller,setting,set,held,n,held_pct,ci_low,ci_high,sd_across_seeds
+RL seed 1,elliptic,fresh,810,1005,80.6,78.04,82.92,
 RL seed 1,default,locked,588,960,61.25,58.13,64.28,
 RL seed 2,default,locked,405,960,42.19,39.1,45.34,
 RL seed 3,default,locked,144,960,15.0,12.88,17.4,
 Mean of 3 seeds,default,locked,,,39.48,,,23.24
+Hand-tuned A,elliptic,fresh,479,1005,47.66,44.59,50.75,
 Hand-tuned A,default,locked,180,960,18.75,16.41,21.34,
 Hand-tuned A,noslip,fresh,468,1005,46.57,43.5,49.66,
 Hand-tuned B,default,locked,185,960,19.27,16.9,21.89,

@@ -1,16 +1,16 @@
-object,"Hand-tuned A (default, locked)","Hand-tuned B (default, locked)","RL seed 1 (default, locked)","RL seed 2 (default, locked)","RL seed 3 (default, locked)","Hand-tuned A (elliptic, fresh)","RL seed 1 (elliptic, fresh)"
-Square pyramid,37.5,32.8,98.4,98.4,31.2,80.6,98.5
-Sphere,70.3,70.3,82.8,65.6,0.0,100.0,95.5
-Cone,23.4,26.6,90.6,98.4,39.1,77.6,98.5
-Ellipsoid,34.4,34.4,78.1,54.7,23.4,97.0,100.0
-Dumbbell,46.9,46.9,90.6,23.4,10.9,46.3,68.7
-Capsule,29.7,37.5,54.7,45.3,37.5,94.0,98.5
-Plus cross,15.6,18.8,78.1,37.5,12.5,62.7,98.5
-Rod,6.2,6.2,93.8,51.6,0.0,37.3,94.0
-Hexagonal prism,0.0,0.0,57.8,50.0,9.4,3.0,59.7
-Triangular prism,0.0,0.0,75.0,23.4,17.2,1.5,62.7
-L block,3.1,3.1,32.8,32.8,25.0,37.3,70.1
-Flat disk,4.7,3.1,21.9,25.0,1.6,13.4,91.0
-Cylindrical prism,0.0,0.0,39.1,4.7,3.1,26.9,74.6
-Rectangular prism,7.8,7.8,14.1,7.8,3.1,13.4,43.3
-Cube,1.6,1.6,10.9,14.1,10.9,23.9,55.2
+object,"Hand-tuned A (default, locked)","Hand-tuned B (default, locked)","RL seed 1 (default, locked)","RL seed 2 (default, locked)","RL seed 3 (default, locked)","Hand-tuned A (elliptic, fresh)","RL seed 1 (elliptic, fresh)","RL seed 2 (elliptic, fresh)","RL seed 3 (elliptic, fresh)","Fixed grip (elliptic, fresh)"
+Square pyramid,37.5,32.8,98.4,98.4,31.2,80.6,98.5,97.0,92.5,100.0
+Sphere,70.3,70.3,82.8,65.6,0.0,100.0,95.5,44.8,4.5,88.1
+Cone,23.4,26.6,90.6,98.4,39.1,77.6,98.5,77.6,91.0,95.5
+Ellipsoid,34.4,34.4,78.1,54.7,23.4,97.0,100.0,88.1,31.3,100.0
+Dumbbell,46.9,46.9,90.6,23.4,10.9,46.3,68.7,37.3,9.0,70.1
+Capsule,29.7,37.5,54.7,45.3,37.5,94.0,98.5,40.3,4.5,98.5
+Plus cross,15.6,18.8,78.1,37.5,12.5,62.7,98.5,86.6,49.3,100.0
+Rod,6.2,6.2,93.8,51.6,0.0,37.3,94.0,61.2,0.0,97.0
+Hexagonal prism,0.0,0.0,57.8,50.0,9.4,3.0,59.7,77.6,91.0,46.3
+Triangular prism,0.0,0.0,75.0,23.4,17.2,1.5,62.7,46.3,85.1,56.7
+L block,3.1,3.1,32.8,32.8,25.0,37.3,70.1,68.7,55.2,68.7
+Flat disk,4.7,3.1,21.9,25.0,1.6,13.4,91.0,68.7,31.3,100.0
+Cylindrical prism,0.0,0.0,39.1,4.7,3.1,26.9,74.6,13.4,32.8,80.6
+Rectangular prism,7.8,7.8,14.1,7.8,3.1,13.4,43.3,34.3,29.9,50.7
+Cube,1.6,1.6,10.9,14.1,10.9,23.9,55.2,65.7,53.7,43.3

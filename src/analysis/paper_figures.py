@@ -228,7 +228,7 @@ def right_text(ax, y, text, x=1.01):
 
 def save(fig, name, header, rows):
     fig.savefig(OUT / f"{name}.png")
-    fig.savefig(OUT / f"{name}.pdf")
+    fig.savefig(OUT / f"{name}.pdf", metadata={"CreationDate": None})  # no timestamp, so unchanged figures stay byte-identical
     plt.close(fig)
     with open(OUT / f"{name}.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -498,9 +498,11 @@ def fig_fixed_grips(D):
     pols = [("RL seed 1", "RL seed 1"), ("RL seed 2", "RL seed 2"), ("RL seed 3", "RL seed 3"), ("Hand-tuned A", "Hand-tuned A")]
     spec = grips + pols
     fresh_grip = D.get(("fresh", "elliptic", "Fixed grip"))
-    ncols = 2 if fresh_grip is not None else 1
-    fig, axes = plt.subplots(1, ncols, figsize=(7.0 if ncols == 1 else 7.6, 3.4), squeeze=False)
-    ax = axes[0][0]
+    two = fresh_grip is not None
+    if two:  # stacked, so panel b's labels and title stay clear of panel a
+        fig, (ax, ax2) = plt.subplots(2, 1, figsize=(7.0, 6.4), gridspec_kw={"height_ratios": [9, 5], "hspace": 0.55})
+    else:
+        fig, ax = plt.subplots(figsize=(7.0, 3.4))
     ys = forest_axes(ax, [s[1] for s in spec], "Trials held at 5 cm (%), dev set, 150 trials")
     out = []
     for y, (key, label) in zip(ys, spec):
@@ -512,7 +514,7 @@ def fig_fixed_grips(D):
             p, lo, hi = draw_rate(ax, y + off, k, n, setting)
             out.append(["dev", label, setting, k, n, round(p, 2), round(lo, 2), round(hi, 2)])
     ax.axhline(len(pols) - 0.5, color=GRID, lw=0.8)
-    if ncols == 2:
+    if two:
         ax.set_title("a  Dev set: fixed grips against the controllers", pad=22)
     ax.legend(handles=[handle("default"), handle("noslip")], loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2)
     for setting in ("default", "noslip"):
@@ -521,10 +523,9 @@ def fig_fixed_grips(D):
             og, orl, p, n = paired(g, r)
             STATS.append(f"- Dev set, {setting}: fixed grip TIRP {pct(*count(g))} vs RL seed 1 {pct(*count(r))}; "
                          f"held only by the grip {og}, only by RL {orl}, {fmt_p(p)}.")
-    if fresh_grip is not None:
-        ax2 = axes[0][1]
+    if two:
         names = ["Fixed grip", "RL seed 1", "RL seed 2", "RL seed 3", "Hand-tuned A"]
-        ys2 = forest_axes(ax2, ["Fixed grip, no learning"] + names[1:], "Trials held at 5 cm (%), fresh seeds, 1,005 trials")
+        ys2 = forest_axes(ax2, [grips[0][1]] + names[1:], "Trials held at 5 cm (%), fresh seeds, 1,005 trials")
         for y, name in zip(ys2, names):
             rows = D.get(("fresh", "elliptic", name))
             if rows is None:
@@ -537,7 +538,7 @@ def fig_fixed_grips(D):
                 STATS.append(f"- Fresh seeds, elliptic: fixed grip {pct(*count(fresh_grip))} vs {name} {pct(k, n)}; "
                              f"held only by the grip {og}, only by {name} {oc}, {fmt_p(pv)}.")
             out.append(["fresh", name, "elliptic", k, n, round(p, 2), round(lo, 2), round(hi, 2)])
-        ax2.set_title("b  Fresh seeds, elliptic: the fixed grip against each controller")
+        ax2.set_title("b  Fresh seeds, elliptic: the fixed grip against each controller", pad=14)
         target_line(ax2)
     save(fig, "fig06_fixed_grips", ["set", "controller", "setting", "held", "n", "held_pct", "ci_low", "ci_high"], out)
 
@@ -948,30 +949,55 @@ def fig_sensor_channel(D):
     save(fig, "fig15_sensor_channel", ["touch_N", "abs_normal_channel_N"], [[round(a, 4), round(b, 4)] for a, b in zip(t, nv)])
 
 
-def fig_agreement(D):
-    names = ["Hand-tuned A", "Hand-tuned B", "RL seed 1", "RL seed 2", "RL seed 3"]
-    rows = [D[("locked", "default", n)] for n in names]
-    if any(r is None for r in rows):
-        return
+def agreement_counts(rows):
+    """Over the trials every controller ran: how many controllers hold each trial, and the held count if each
+    object got its best controller. That best is picked on the same trials, so it is an optimistic ceiling."""
     keys = sorted(set.intersection(*[set(r) for r in rows]))
     counts = [sum(held(r[k]) for r in rows) for k in keys]
-    hist = [sum(c == i for c in counts) for i in range(6)]
-    fig, ax = plt.subplots(figsize=(3.6, 2.6))
-    ax.bar(range(6), hist, width=0.6, color=SETTINGS["default"]["color"], zorder=2)
-    for i, h in enumerate(hist):
-        ax.text(i, h + 6, f"{h}", ha="center", va="bottom", fontsize=7, color=INK2)
-    ax.set_xticks(range(6))
-    ax.set_xlabel("Controllers that hold the trial (of 5)")
-    ax.set_ylabel("Trials, locked set (960)")
-    ax.grid(axis="x", visible=False)
-    ax.set_ylim(0, max(hist) * 1.15)
-    any_ = len(keys) - hist[0]
+    hist = [sum(c == i for c in counts) for i in range(len(rows) + 1)]
     objects = sorted({k[0] for k in keys})
     best = sum(max(sum(held(r[k]) for k in keys if k[0] == o) for r in rows) for o in objects)
-    STATS.append(f"- Locked set, default: {any_} of {len(keys)} trials ({100 * any_ / len(keys):.1f}%) are held by at least one of the "
-                 f"5 controllers; {hist[0]} by none; {hist[5]} by all five. Choosing the best controller for each object would "
-                 f"hold {best} ({100 * best / len(keys):.1f}%).")
-    save(fig, "fig16_controller_agreement", ["controllers_holding", "trials"], [[i, h] for i, h in enumerate(hist)])
+    return len(keys), hist, best
+
+
+def fig_agreement(D):
+    """How many controllers hold each trial: the locked set under default, then fresh seeds under elliptic
+    once those runs are complete. Bars are shares of trials so the two sets compare; labels are counts."""
+    panels = [("locked", "default", ["Hand-tuned A", "Hand-tuned B", "RL seed 1", "RL seed 2", "RL seed 3"],
+               "a  Locked set, default", "Hand-tuned A and B, RL seeds 1-3"),
+              ("fresh", "elliptic", ["Hand-tuned A", "RL seed 1", "RL seed 2", "RL seed 3", "Fixed grip"],
+               "b  Fresh seeds, elliptic", "Hand-tuned A, RL seeds 1-3, fixed grip")]
+    panels = [p for p in panels if all(D.get((p[0], p[1], nm)) is not None for nm in p[2])]
+    if not panels:
+        return
+    fig, axes = plt.subplots(1, len(panels), figsize=(3.6 * len(panels), 2.8), sharey=True, squeeze=False)
+    out, top = [], 0
+    for ax, (set_, setting, names, title, who) in zip(axes[0], panels):
+        n, hist, best = agreement_counts([D[(set_, setting, nm)] for nm in names])
+        pcts = [100 * h / n for h in hist]
+        top = max(top, max(pcts))
+        ax.bar(range(len(hist)), pcts, width=0.6, color=SETTINGS[setting]["color"], zorder=2)
+        for i, (h, p) in enumerate(zip(hist, pcts)):
+            ax.text(i, p + 0.6, f"{h}", ha="center", va="bottom", fontsize=7, color=INK2)
+        ax.set_xticks(range(len(hist)))
+        ax.set_xlabel(f"Controllers that hold the trial (of {len(names)})")
+        ax.grid(axis="x", visible=False)
+        ax.set_title(f"{title} ({n:,} trials)", pad=16)
+        ax.text(0, 1.03, who, transform=ax.transAxes, ha="left", va="bottom", fontsize=7, color=INK2)
+        out.extend([title[3:], i, h, round(p, 2)] for i, (h, p) in enumerate(zip(hist, pcts)))
+        STATS.append(f"- {title[3:]}: {n - hist[0]} of {n} trials ({100 * (n - hist[0]) / n:.1f}%) are held by at least one of "
+                     f"the {len(names)} controllers ({who}); {hist[0]} ({100 * hist[0] / n:.1f}%) by none; {hist[-1]} by all "
+                     f"{len(names)}. Choosing the best controller for each object would hold {best} ({100 * best / n:.1f}%), "
+                     f"picked on the same trials, so optimistic.")
+    axes[0][0].set_ylabel("Share of trials (%)")
+    axes[0][0].set_ylim(0, top * 1.15)
+    if len(panels) == 2:  # like for like: the four controllers run on both sets
+        common = ["Hand-tuned A", "RL seed 1", "RL seed 2", "RL seed 3"]
+        for set_, setting in (("locked", "default"), ("fresh", "elliptic")):
+            n, hist, best = agreement_counts([D[(set_, setting, nm)] for nm in common])
+            STATS.append(f"- Same four controllers (hand-tuned A, RL seeds 1-3), {set_} set, {setting}: {hist[0]} of {n} "
+                         f"({100 * hist[0] / n:.1f}%) held by none; best controller per object {best} ({100 * best / n:.1f}%).")
+    save(fig, "fig16_controller_agreement", ["panel", "controllers_holding", "trials", "share_pct"], out)
 
 
 def outcome_split(rows):
@@ -1064,45 +1090,68 @@ def paired_diff(ra, rb, cm_a=5, cm_b=5, reps=4000):
 
 
 def fig_factor_summary(D):
-    """One figure for the paper's argument: how much each factor moves the held rate."""
-    L, A, V = "locked", "all67", "dev"
-    spec = [
-        ("RL training seed: seed 1 vs. seed 3", "default", (L, "default", "RL seed 1"), (L, "default", "RL seed 3"), 5, 5, "locked set"),
-        ("Controller: best RL seed vs. hand-tuned A", "default", (L, "default", "RL seed 1"), (L, "default", "Hand-tuned A"), 5, 5, "locked set"),
-        ("Grip: four fingers vs. all five (fixed grips)", "default", (V, "default", "TIRP_fast"), (V, "default", "TIMRP_fast"), 5, 5, "dev set"),
-        ("Success definition: no drop rule vs. 5 cm rule", "default", (A, "default", "Hand-tuned A"), (A, "default", "Hand-tuned A"), None, 5, "seeds 0-66"),
-        ("Contact settings: elliptic vs. default, RL seed 1", "elliptic", (V, "elliptic", "RL seed 1"), (V, "default", "RL seed 1"), 5, 5, "dev set"),
-        ("Contact settings: elliptic vs. default, RL seed 2", "elliptic", (V, "elliptic", "RL seed 2"), (V, "default", "RL seed 2"), 5, 5, "dev set"),
-        ("Learning: best RL seed vs. fixed grip", "default", (V, "default", "RL seed 1"), (V, "default", "TIRP_fast"), 5, 5, "dev set"),
-        ("Detector quality: F1 0.799 vs. 0.691", "default", (A, "default", "Hand-tuned B"), (A, "default", "Hand-tuned A"), 5, 5, "seeds 0-66"),
-        ("Detector: with vs. without TCN, hand-tuned A", "default", (V, "default", "Hand-tuned A"), (V, "default", "Hand-tuned A, no TCN"), 5, 5, "dev set"),
-        ("Detector: with vs. without signal, RL seed 1", "default", (V, "default", "RL seed 1"), (V, "default", "RL seed 1, no TCN"), 5, 5, "dev set"),
+    """One figure for the paper's argument: how much each factor moves the held rate. Where the fresh
+    seeds give the same paired comparison under the primary elliptic settings, it sits on the same row
+    in blue, so the reader can see whether the ranking holds there. Elliptic-minus-default rows are
+    neutral gray, since blue means "under elliptic" everywhere else in the paper."""
+    L, A, V, F, E = "locked", "all67", "dev", "fresh", "elliptic"
+    spec = [  # label, kind, a, b, cm for a, cm for b, set, the same comparison on fresh elliptic seeds (or None)
+        ("RL training seed: seed 1 vs. seed 3", "default", (L, "default", "RL seed 1"), (L, "default", "RL seed 3"), 5, 5,
+         "locked set", ((F, E, "RL seed 1"), (F, E, "RL seed 3"))),
+        ("Controller: best RL seed vs. hand-tuned A", "default", (L, "default", "RL seed 1"), (L, "default", "Hand-tuned A"),
+         5, 5, "locked set", ((F, E, "RL seed 1"), (F, E, "Hand-tuned A"))),
+        ("Grip: four fingers vs. all five (fixed grips)", "default", (V, "default", "TIRP_fast"), (V, "default", "TIMRP_fast"),
+         5, 5, "dev set", None),
+        ("Success definition: no drop rule vs. 5 cm rule", "default", (A, "default", "Hand-tuned A"),
+         (A, "default", "Hand-tuned A"), None, 5, "seeds 0-66", ((F, E, "Hand-tuned A"), (F, E, "Hand-tuned A"))),
+        ("Contact settings: elliptic vs. default, RL seed 1", "between", (V, E, "RL seed 1"), (V, "default", "RL seed 1"),
+         5, 5, "dev set", None),
+        ("Contact settings: elliptic vs. default, RL seed 2", "between", (V, E, "RL seed 2"), (V, "default", "RL seed 2"),
+         5, 5, "dev set", None),
+        ("Learning: best RL seed vs. fixed grip", "default", (V, "default", "RL seed 1"), (V, "default", "TIRP_fast"), 5, 5,
+         "dev set", ((F, E, "RL seed 1"), (F, E, "Fixed grip"))),
+        ("Detector quality: F1 0.799 vs. 0.691", "default", (A, "default", "Hand-tuned B"), (A, "default", "Hand-tuned A"),
+         5, 5, "seeds 0-66", None),
+        ("Detector: with vs. without TCN, hand-tuned A", "default", (V, "default", "Hand-tuned A"),
+         (V, "default", "Hand-tuned A, no TCN"), 5, 5, "dev set", None),
+        ("Detector: with vs. without signal, RL seed 1", "default", (V, "default", "RL seed 1"),
+         (V, "default", "RL seed 1, no TCN"), 5, 5, "dev set", None),
     ]
+    look = {"default": (SETTINGS["default"]["color"], SETTINGS["default"]["marker"]),
+            "elliptic": (SETTINGS["elliptic"]["color"], SETTINGS["elliptic"]["marker"]),
+            "between": (INK2, "^")}
     rows = []
-    for label, setting, ka, kb, cma, cmb, where in spec:
+    for label, kind, ka, kb, cma, cmb, where, fresh in spec:
         ra, rb = D.get(ka), D.get(kb)
         if ra is None or rb is None:
             NOTES.append(f"left out of the factor summary: {label}")
             continue
-        m, lo, hi, n = paired_diff(ra, rb, cma, cmb)
-        rows.append((label, setting, m, lo, hi, n, where))
-    rows.sort(key=lambda r: -abs(r[2]))
-    fig, ax = plt.subplots(figsize=(7.2, 0.36 * len(rows) + 0.9))
+        ests = [(kind, *paired_diff(ra, rb, cma, cmb), where)]
+        if fresh is not None and D.get(fresh[0]) is not None and D.get(fresh[1]) is not None:
+            ests.append(("elliptic", *paired_diff(D[fresh[0]], D[fresh[1]], cma, cmb), "fresh seeds, elliptic"))
+        rows.append((label, ests))
+    rows.sort(key=lambda r: -abs(r[1][0][1]))
+    two = any(len(e) > 1 for _, e in rows)
+    fig, ax = plt.subplots(figsize=(7.2, (0.48 if two else 0.36) * len(rows) + 0.9))
     ys = forest_axes(ax, [r[0] for r in rows], "Change in trials held at 5 cm (percentage points), same trials on both sides",
                      xlim=(-10, 60))
     ax.axvline(0, color=AXIS, lw=1.0, zorder=1)
     out = []
-    for y, (label, setting, m, lo, hi, n, where) in zip(ys, rows):
-        s = SETTINGS[setting]
-        ax.plot([lo, hi], [y, y], color=s["color"], lw=1.5, zorder=2)
-        ax.plot([m], [y], ls="none", marker=s["marker"], ms=5.5, mfc=s["color"], mec="white", mew=0.9, zorder=3)
-        right_text(ax, y, f"{m:+.1f} [{lo:+.1f}, {hi:+.1f}]   {where}, n = {n:,}")
-        out.append([label, setting, round(m, 2), round(lo, 2), round(hi, 2), n, where])
-        STATS.append(f"- {label}: {m:+.1f} points (95% paired bootstrap interval {lo:+.1f} to {hi:+.1f}), {where}, {n} paired trials.")
-    ax.legend(handles=[handle("default", label="Comparison under MuJoCo default settings"),
-                       handle("elliptic", label="Elliptic against default, same trials")],
-              loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2)
-    save(fig, "fig00_factor_summary", ["comparison", "setting", "difference_points", "ci_low", "ci_high", "n_pairs", "set"], out)
+    for y, (label, ests) in zip(ys, rows):
+        for off, (kind, m, lo, hi, n, where) in zip([0.0] if len(ests) == 1 else [0.17, -0.17], ests):
+            c, mk = look[kind]
+            ax.plot([lo, hi], [y + off, y + off], color=c, lw=1.5, zorder=2)
+            ax.plot([m], [y + off], ls="none", marker=mk, ms=5.5, mfc=c, mec="white", mew=0.9, zorder=3)
+            right_text(ax, y + off, f"{m:+.1f} [{lo:+.1f}, {hi:+.1f}]   {where}, n = {n:,}")
+            out.append([label, kind, round(m, 2), round(lo, 2), round(hi, 2), n, where])
+            STATS.append(f"- {label} ({where}): {m:+.1f} points (95% paired bootstrap interval {lo:+.1f} to {hi:+.1f}), "
+                         f"{n} paired trials.")
+    names = (("default", "Under MuJoCo default settings"), ("elliptic", "Under elliptic settings, fresh seeds"),
+             ("between", "Elliptic minus default, same trials"))
+    ax.legend(handles=[Line2D([0], [0], color=look[k][0], lw=1.5, marker=look[k][1], ms=5.5, mfc=look[k][0], mec="white",
+                              mew=0.9, label=t) for k, t in names if two or k != "elliptic"],
+              loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3)
+    save(fig, "fig00_factor_summary", ["comparison", "kind", "difference_points", "ci_low", "ci_high", "n_pairs", "set"], out)
 
 
 def fig_dev_vs_fresh(D):

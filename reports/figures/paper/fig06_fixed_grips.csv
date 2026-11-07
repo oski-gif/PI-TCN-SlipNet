@@ -17,3 +17,8 @@ dev,RL seed 3,default,19,150,12.67,8.26,18.94
 dev,RL seed 3,noslip,61,150,40.67,33.13,48.67
 dev,Hand-tuned A,default,35,150,23.33,17.28,30.72
 dev,Hand-tuned A,noslip,66,150,44.0,36.3,52.0
+fresh,Fixed grip,elliptic,801,1005,79.7,77.1,82.07
+fresh,RL seed 1,elliptic,810,1005,80.6,78.04,82.92
+fresh,RL seed 2,elliptic,608,1005,60.5,57.44,63.47
+fresh,RL seed 3,elliptic,443,1005,44.08,41.04,47.17
+fresh,Hand-tuned A,elliptic,479,1005,47.66,44.59,50.75

@@ -1,7 +1,13 @@
-controllers_holding,trials
-0,249
-1,261
-2,233
-3,108
-4,94
-5,15
+panel,controllers_holding,trials,share_pct
+"Locked set, default",0,249,25.94
+"Locked set, default",1,261,27.19
+"Locked set, default",2,233,24.27
+"Locked set, default",3,108,11.25
+"Locked set, default",4,94,9.79
+"Locked set, default",5,15,1.56
+"Fresh seeds, elliptic",0,51,5.07
+"Fresh seeds, elliptic",1,82,8.16
+"Fresh seeds, elliptic",2,158,15.72
+"Fresh seeds, elliptic",3,274,27.26
+"Fresh seeds, elliptic",4,279,27.76
+"Fresh seeds, elliptic",5,161,16.02

@@ -14,6 +14,9 @@ panel,controller,setting,set,n,held,slipped_after_forming,fell_while_forming
 Locked set under default against fresh seeds under elliptic,RL seed 1,default,locked,960,588,183,189
 Locked set under default against fresh seeds under elliptic,RL seed 1,elliptic,fresh,1005,810,112,83
 Locked set under default against fresh seeds under elliptic,RL seed 2,default,locked,960,405,278,277
+Locked set under default against fresh seeds under elliptic,RL seed 2,elliptic,fresh,1005,608,240,157
 Locked set under default against fresh seeds under elliptic,RL seed 3,default,locked,960,144,352,464
+Locked set under default against fresh seeds under elliptic,RL seed 3,elliptic,fresh,1005,443,189,373
 Locked set under default against fresh seeds under elliptic,Hand-tuned A,default,locked,960,180,222,558
 Locked set under default against fresh seeds under elliptic,Hand-tuned A,elliptic,fresh,1005,479,174,352
+Locked set under default against fresh seeds under elliptic,Fixed grip,elliptic,fresh,1005,801,104,100
